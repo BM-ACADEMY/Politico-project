@@ -1,4 +1,4 @@
-const User = require("../models/user");
+const User = require("../models/usermodel");
 const Role = require("../models/role");
 
 // ✅ Get All Users
