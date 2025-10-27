@@ -1,5 +1,5 @@
 // src/components/AppSidebar.jsx
-import { IconInnerShadowTopLeft } from "@tabler/icons-react";
+// import { IconInnerShadowTopLeft } from "@tabler/icons-react";
 import { NavMain } from "@/components/nav-main";
 import { Link } from "react-router-dom";
 import { NavUser } from "@/components/nav-user";
@@ -31,7 +31,7 @@ export function AppSidebar({ ...props }) {
           <SidebarMenuItem>
             <SidebarMenuButton asChild>
               <Link to="/">
-                <IconInnerShadowTopLeft className="!size-5" />
+                {/* <IconInnerShadowTopLeft/> */}
                 <span className="text-base font-semibold">Politico 360</span>
               </Link>
             </SidebarMenuButton>

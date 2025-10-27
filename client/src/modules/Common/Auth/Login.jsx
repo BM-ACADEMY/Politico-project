@@ -24,6 +24,8 @@ const Login = () => {
       };
       await login(credentials);
     } catch (err) {
+      console.log(err);
+      
       // Errors are already toasted in AuthContext
     } finally {
       setLoading(false);
@@ -49,6 +51,7 @@ const Login = () => {
           <Mail size={16} className="text-gray-500" />
           <input
             type="text"
+            name="email"
             placeholder="Email or Phone"
             className="bg-transparent text-gray-700 placeholder-gray-500 outline-none text-sm w-full h-full"
             value={emailOrPhone}
@@ -63,6 +66,7 @@ const Login = () => {
           <Lock size={16} className="text-gray-500" />
           <input
             type="password"
+            name="password"
             placeholder="Password"
             className="bg-transparent text-gray-700 placeholder-gray-500 outline-none text-sm w-full h-full"
             value={password}

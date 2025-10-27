@@ -7,13 +7,12 @@ import {
   MdChecklist 
 } from "react-icons/md";
 import { FaBriefcase } from "react-icons/fa";
+import { MdPlaylistAdd } from "react-icons/md";
 
 export const sidebarMenuItems = {
   root_admin: [
     { url: "/root-admin-dashboard", title: "Dashboard", icon: MdDashboard },
-    { url: "/root-admin-dashboard/users", title: "Manage Users", icon: MdPerson },
-    { url: "/root-admin-dashboard/roles", title: "Roles & Permissions", icon: MdPersonAdd },
-    { url: "/root-admin-dashboard/system-logs", title: "System Logs", icon: MdChecklist },
+    { url: "/root-admin-dashboard/parties", title: "Parties", icon: MdPlaylistAdd },
   ],
   admin: [
     { url: "/admin-dashboard", title: "Dashboard", icon: MdDashboard },

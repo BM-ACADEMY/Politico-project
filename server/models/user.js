@@ -1,3 +1,4 @@
+// models/user.js
 const mongoose = require("mongoose");
 const bcrypt = require("bcryptjs");
 
@@ -22,4 +23,5 @@ userSchema.methods.matchPassword = async function(enteredPassword) {
   return await bcrypt.compare(enteredPassword, this.password);
 };
 
-module.exports = mongoose.model("User", userSchema);
+// ✅ ADD THIS GUARD TO PREVENT OVERWRITE
+module.exports = mongoose.models.User || mongoose.model("User", userSchema);

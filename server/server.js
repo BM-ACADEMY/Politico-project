@@ -45,6 +45,7 @@ app.get("/", (req, res) => {
 app.use("/api/auth", require("./routes/authRoutes"));
 app.use("/api/roles", require("./routes/roleRoutes"));
 app.use("/api/users", require("./routes/userRoutes"));
+app.use("/api/party", require("./routes/partyRoutes"))
 
 
 // ======== Server & DB Connection ========
