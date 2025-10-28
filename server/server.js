@@ -87,6 +87,13 @@ app.use("/api/auth", require("./routes/authRoutes"));
 app.use("/api/roles", require("./routes/roleRoutes"));
 app.use("/api/users", require("./routes/userRoutes"));
 app.use("/api/party", require("./routes/partyRoutes"))
+app.use("/api/candidates", require("./routes/candidateRoutes"));
+
+
+// Dasboards
+app.use("/api/rootdashboard", require("./routes/dashboardroute/dashboardRoutes"));
+
+
 
 
 // ======== Server & DB Connection ========

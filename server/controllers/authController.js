@@ -115,7 +115,25 @@ exports.getUserInfo = async (req, res) => {
 };
 
 // ✅ Logout
+// exports.logout = async (req, res) => {
+//   res.cookie("token", "", { maxAge: 0, httpOnly: true });
+//   res.status(200).json({ message: "Logged out successfully" });
+// };
+
+
 exports.logout = async (req, res) => {
-  res.cookie("token", "", { maxAge: 0, httpOnly: true });
-  res.status(200).json({ message: "Logged out successfully" });
+  try {
+    res.clearCookie("token", {
+      httpOnly: true,
+      secure: true,
+      sameSite: "none",
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Logged out successfully",
+    });
+  } catch (error) {
+    res.status(500).json({ message: "Logout failed" });
+  }
 };

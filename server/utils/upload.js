@@ -8,7 +8,7 @@ const ffmpegStatic = require("ffmpeg-static");
 
 ffmpeg.setFfmpegPath(ffmpegStatic);
 
-const SERVER_URL = process.env.SERVER_URL;
+const SERVER_URL = process.env.SERVER_URL ;
 console.log(`Server URL: ${SERVER_URL}`);
 
 // Ensure dynamic folder creation for candidateimage only
