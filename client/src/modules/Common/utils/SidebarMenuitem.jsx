@@ -8,11 +8,13 @@ import {
 } from "react-icons/md";
 import { FaBriefcase } from "react-icons/fa";
 import { MdPlaylistAdd } from "react-icons/md";
+import { User } from "lucide-react";
 
 export const sidebarMenuItems = {
   root_admin: [
     { url: "/root-admin-dashboard", title: "Dashboard", icon: MdDashboard },
     { url: "/root-admin-dashboard/parties", title: "Parties", icon: MdPlaylistAdd },
+    { url: "/root-admin-dashboard/candidates", title: "Candidates", icon: User },
   ],
   admin: [
     { url: "/admin-dashboard", title: "Dashboard", icon: MdDashboard },
