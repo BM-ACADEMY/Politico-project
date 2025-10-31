@@ -88,6 +88,8 @@ app.use("/api/roles", require("./routes/roleRoutes"));
 app.use("/api/users", require("./routes/userRoutes"));
 app.use("/api/party", require("./routes/partyRoutes"))
 app.use("/api/candidates", require("./routes/candidateRoutes"));
+app.use("/api/wards", require("./routes/wardRoutes"));
+app.use("/api/voters", require("./routes/voterRoutes"));
 
 
 // Dasboards

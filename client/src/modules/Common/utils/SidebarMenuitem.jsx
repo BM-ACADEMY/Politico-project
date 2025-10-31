@@ -8,7 +8,7 @@ import {
 } from "react-icons/md";
 import { FaBriefcase } from "react-icons/fa";
 import { MdPlaylistAdd } from "react-icons/md";
-import { User } from "lucide-react";
+import { User, Users } from "lucide-react";
 
 export const sidebarMenuItems = {
   root_admin: [
@@ -19,14 +19,11 @@ export const sidebarMenuItems = {
   admin: [
     { url: "/admin-dashboard", title: "Dashboard", icon: MdDashboard },
     { url: "/admin-dashboard/streets-wards", title: "Streets / Wards", icon: MdChecklist },
-    { url: "/admin-dashboard/candidates", title: "Candidates", icon: MdPerson },
-    { url: "/admin-dashboard/voters", title: "Voters", icon: MdPersonAdd },
   ],
   candidate: [
     { url: "/candidate-dashboard", title: "Dashboard", icon: MdDashboard },
-    { url: "/candidate-dashboard/campaign", title: "Campaign", icon: FaBriefcase },
-    { url: "/candidate-dashboard/schedule", title: "Schedule", icon: MdEvent },
-    { url: "/candidate-dashboard/profile", title: "Profile", icon: MdPerson },
+    { url: "/candidate-dashboard/streets-wards", title: "Streets / Wards", icon: FaBriefcase },
+    { url: "/candidate-dashboard/voters", title: "Voters", icon: Users },
   ],
   volunteers: [
     { url: "/volunteer-dashboard", title: "Dashboard", icon: MdDashboard },
