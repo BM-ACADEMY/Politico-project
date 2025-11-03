@@ -1,5 +1,5 @@
 // eventController.js - With debugging logs and proper error handling for createdBy
-const Event = require("../models/eventModel");
+const Event = require("../models/Eventmodel");
 const cron = require('node-cron');
 
 // Helper to get user ID
