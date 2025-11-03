@@ -91,14 +91,6 @@ export function NavUser({ user }) {
                 <IconUserCircle className="mr-2" />
                 Account
               </DropdownMenuItem>
-              <DropdownMenuItem>
-                <IconCreditCard className="mr-2" />
-                Billing
-              </DropdownMenuItem>
-              <DropdownMenuItem>
-                <IconNotification className="mr-2" />
-                Notifications
-              </DropdownMenuItem>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
             <DropdownMenuItem
