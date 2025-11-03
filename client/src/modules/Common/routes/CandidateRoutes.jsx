@@ -2,11 +2,13 @@ import Wards from "@/modules/Candidates/Wards/Wards";
 import PrivateRoute from "../context/PrivateRoute";
 import Voters from "@/modules/Candidates/voters/Voters";
 import Events from "@/modules/Candidates/Events/Events";
+import Banners from "@/modules/Candidates/Banners/Banners";
+import Dashboard from "@/modules/Candidates/Dashboard/Dashboard";
 
 export const candidateRoutes = [
   {
     path: '/candidate-dashboard',
-    element: <PrivateRoute allowedRole="candidate"><>Dash</></PrivateRoute>,
+    element: <PrivateRoute allowedRole="candidate"><Dashboard/></PrivateRoute>,
   },
   {
     path: '/candidate-dashboard/streets-wards',
@@ -19,6 +21,10 @@ export const candidateRoutes = [
   {
     path: '/candidate-dashboard/events',
     element: <PrivateRoute allowedRole="candidate"><Events/></PrivateRoute>,
+  },
+  {
+    path: '/candidate-dashboard/banner',
+    element: <PrivateRoute allowedRole="candidate"><Banners/></PrivateRoute>,
   },
 
 ];

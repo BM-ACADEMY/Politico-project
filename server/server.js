@@ -91,6 +91,7 @@ app.use("/api/candidates", require("./routes/candidateRoutes"));
 app.use("/api/wards", require("./routes/wardRoutes"));
 app.use("/api/voters", require("./routes/voterRoutes"));
 app.use("/api/events", require("./routes/EventRoutes"));
+app.use("/api/banners", require("./routes/bannerroutes"));
 
 
 // Dasboards
