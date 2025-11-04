@@ -36,6 +36,7 @@ const Wards = () => {
   const { user } = useContext(AuthContext);
   const [open, setOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [loading, setLoading] = useState(false);
   const [editLoading, setEditLoading] = useState(false);
   const [wards, setWards] = useState([]);
@@ -43,6 +44,7 @@ const Wards = () => {
   const [error, setError] = useState("");
   const [candidates, setCandidates] = useState([]);
   const [editingWard, setEditingWard] = useState(null);
+  const [wardToDelete, setWardToDelete] = useState(null);
 
   // ---------- Ward Form ----------
   const [wardForm, setWardForm] = useState({
@@ -169,15 +171,33 @@ const Wards = () => {
       return;
     }
 
+    const isCandidate = user?.role?.name === "candidate";
+
+    // Ensure candidate_id is always set correctly
+    let payloadCandidateId;
+    if (isCandidate) {
+      const myCandidate = candidates.find((c) => c.email === user.email);
+      if (!myCandidate) {
+        showToast("error", "Your candidate profile could not be found. Please contact an administrator.");
+        return;
+      }
+      payloadCandidateId = myCandidate._id;
+    } else {
+      if (!wardForm.candidate_id) {
+        showToast("error", "Please select a candidate");
+        return;
+      }
+      payloadCandidateId = wardForm.candidate_id;
+    }
+
     if (
       !wardForm.ward_name ||
       !wardForm.ward_number ||
       !wardForm.district ||
       !wardForm.state ||
-      !wardForm.population ||
-      !wardForm.candidate_id
+      !wardForm.population
     ) {
-      showToast("error", "Please fill all required fields including candidate");
+      showToast("error", "Please fill all required fields");
       return;
     }
 
@@ -199,14 +219,15 @@ const Wards = () => {
       const payload = {
         ward_name: wardForm.ward_name,
         ward_number: Number(wardForm.ward_number),
-        candidate_id: wardForm.candidate_id,
         district: wardForm.district,
         state: wardForm.state,
         population: Number(wardForm.population),
         localities,
         address_details: addressDetails,
-        // DO NOT SEND created_by → Backend sets it from req.user.id
+        candidate_id: payloadCandidateId,  // Always include it now
       };
+
+      console.log("Submitting payload:", payload, "User role:", user?.role?.name); // Debug log
 
       await axiosInstance.post("/wards", payload);
       showToast("success", "Ward created successfully!");
@@ -311,15 +332,38 @@ const Wards = () => {
   };
 
   const handleUpdateWard = async () => {
+    const isCandidate = user?.role?.name === "candidate";
+
+    // Ensure candidate_id is always set correctly
+    let payloadCandidateId;
+    if (isCandidate) {
+      const myCandidate = candidates.find((c) => c.email === user.email);
+      if (!myCandidate) {
+        showToast("error", "Your candidate profile could not be found. Please contact an administrator.");
+        return;
+      }
+      // Optional: Verify it's their own ward
+      if (editingWard.candidate_id?._id !== myCandidate._id) {
+        showToast("error", "You can only edit your own wards.");
+        return;
+      }
+      payloadCandidateId = myCandidate._id;
+    } else {
+      if (!editWardForm.candidate_id) {
+        showToast("error", "Please select a candidate");
+        return;
+      }
+      payloadCandidateId = editWardForm.candidate_id;
+    }
+
     if (
       !editWardForm.ward_name ||
       !editWardForm.ward_number ||
       !editWardForm.district ||
       !editWardForm.state ||
-      !editWardForm.population ||
-      (user?.role !== "candidate" && !editWardForm.candidate_id)
+      !editWardForm.population
     ) {
-      showToast("error", "Please fill all required fields" + (user?.role !== "candidate" ? " including candidate" : ""));
+      showToast("error", "Please fill all required fields");
       return;
     }
 
@@ -346,11 +390,10 @@ const Wards = () => {
         population: Number(editWardForm.population),
         localities: editLocalities,
         address_details: editAddressDetails,
+        candidate_id: payloadCandidateId,  // Always include it now
       };
 
-      if (user?.role !== "candidate") {
-        payload.candidate_id = editWardForm.candidate_id;
-      }
+      console.log("Updating payload:", payload, "User role:", user?.role?.name); // Debug log
 
       await axiosInstance.put(`/wards/${editingWard._id}`, payload);
       showToast("success", "Ward updated successfully!");
@@ -369,11 +412,17 @@ const Wards = () => {
   };
 
   // ---------- Delete Ward ----------
-  const handleDeleteWard = async (wardId) => {
-    if (!window.confirm("Are you sure you want to delete this ward?")) return;
+  const handleDeleteWard = (ward) => {
+    setWardToDelete(ward);
+    setShowDeleteConfirm(true);
+  };
 
+  const confirmDeleteWard = async () => {
+    if (!wardToDelete) return;
+
+    setShowDeleteConfirm(false);
     try {
-      await axiosInstance.delete(`/wards/${wardId}`);
+      await axiosInstance.delete(`/wards/${wardToDelete._id}`);
       showToast("success", "Ward deleted successfully");
       fetchWards();
     } catch (error) {
@@ -381,6 +430,8 @@ const Wards = () => {
       showToast("error", msg);
     }
   };
+
+  const isCandidate = user?.role?.name === "candidate";
 
   return (
     <div className="p-6 space-y-6">
@@ -431,21 +482,33 @@ const Wards = () => {
                     required
                   />
                 </div>
-                <div>
-                  <Label htmlFor="candidate_id">Candidate *</Label>
-                  <Select value={wardForm.candidate_id} onValueChange={handleCandidateChange} required>
-                    <SelectTrigger>
-                      <SelectValue placeholder="-- Select Candidate --" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {candidates.map((candidate) => (
-                        <SelectItem key={candidate._id} value={candidate._id}>
-                          {candidate.name} ({candidate.email})
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+                {isCandidate ? (
+                  <div>
+                    <Label>Candidate</Label>
+                    <Input
+                      value={`${user.name || "N/A"} (${user.email || ""})`}
+                      disabled
+                      readOnly
+                      className="bg-gray-100"
+                    />
+                  </div>
+                ) : (
+                  <div>
+                    <Label htmlFor="candidate_id">Candidate *</Label>
+                    <Select value={wardForm.candidate_id} onValueChange={handleCandidateChange} required>
+                      <SelectTrigger>
+                        <SelectValue placeholder="-- Select Candidate --" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {candidates.map((candidate) => (
+                          <SelectItem key={candidate._id} value={candidate._id}>
+                            {candidate.name} ({candidate.email})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
                 <div>
                   <Label htmlFor="district">District *</Label>
                   <Input
@@ -650,7 +713,7 @@ const Wards = () => {
                   required
                 />
               </div>
-              {user?.role === "candidate" ? (
+              {isCandidate ? (
                 <div>
                   <Label>Candidate</Label>
                   <Input
@@ -843,6 +906,36 @@ const Wards = () => {
         </DialogContent>
       </Dialog>
 
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirm Delete</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete <strong>{wardToDelete?.ward_name}</strong>?
+              <br />
+              This ward has {wardToDelete?.address_details?.length || 0} address(es) and {wardToDelete?.localities?.length || 0} locality(ies).
+              <br />
+              <span className="text-destructive">This action cannot be undone.</span>
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-3">
+            <Button
+              variant="outline"
+              onClick={() => setShowDeleteConfirm(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={confirmDeleteWard}
+            >
+              Delete Ward
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Wards Table */}
       <div className="bg-white rounded-lg shadow overflow-hidden">
         <Table>
@@ -886,13 +979,13 @@ const Wards = () => {
                   <TableCell>{ward.ward_number}</TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
-                      {ward.candidate_id?.photo && (
+                      {/* {ward.candidate_id?.photo && (
                         <img
                           src={`${import.meta.env.VITE_BASE_URL}/Uploads/candidateimages/${ward.candidate_id.photo}`}
                           alt={ward.candidate_id.name}
                           className="w-8 h-8 rounded-full object-cover"
                         />
-                      )}
+                      )} */}
                       <span>{ward.candidate_id?.name || "N/A"}</span>
                     </div>
                   </TableCell>
@@ -915,7 +1008,7 @@ const Wards = () => {
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={() => handleDeleteWard(ward._id)}
+                      onClick={() => handleDeleteWard(ward)}
                       className="text-red-600 hover:text-red-800"
                     >
                       <Trash className="w-4 h-4" />

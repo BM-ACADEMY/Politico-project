@@ -1,26 +1,36 @@
+// controllers/wardController.js (fixed: use req.user.id instead of req.user._id)
 const Ward = require("../models/ward");
 const Candidate = require("../models/candidateModel");
 
 const createWard = async (req, res) => {
   try {
+    // Ensure user is authenticated
+    if (!req.user || !req.user.id) {
+      return res.status(401).json({ success: false, message: "Unauthorized: User not authenticated" });
+    }
+
     const { 
       ward_name, ward_number, district, state, population, 
       localities, address_details, candidate_id 
     } = req.body;
 
-    const finalCandidateId = req.user.role === "candidate" 
-      ? req.user.id 
-      : candidate_id;
+    const userCandidate = await Candidate.findOne({ created_by: req.user.id });
+    let finalCandidateId;
 
-    if (!finalCandidateId) {
-      return res.status(400).json({ success: false, message: "Candidate ID is required" });
+    if (userCandidate) {
+      finalCandidateId = userCandidate._id;
+    } else {
+      finalCandidateId = candidate_id;
+      if (!finalCandidateId) {
+        return res.status(400).json({ success: false, message: "Candidate ID is required" });
+      }
     }
 
     const newWard = await Ward.create({
       ward_name,
       ward_number,
       candidate_id: finalCandidateId,
-      created_by: req.user.id,  // ALWAYS SET HERE
+      created_by: req.user.id,
       district,
       state,
       population,
@@ -35,15 +45,21 @@ const createWard = async (req, res) => {
   }
 };
 
-// ✅ Get all wards (admin) or own wards (candidate)
+// Get all wards (admin sees all; candidate sees own)
 const getWards = async (req, res) => {
   try {
+    // Ensure user is authenticated
+    if (!req.user || !req.user.id) {
+      return res.status(401).json({ success: false, message: "Unauthorized: User not authenticated" });
+    }
+
+    const userCandidate = await Candidate.findOne({ created_by: req.user.id });
     let query = {};
-    if (req.user.role === "candidate") {
-      query = { candidate_id: req.user._id };
+    if (userCandidate) {
+      query = { candidate_id: userCandidate._id };
     }
     const wards = await Ward.find(query)
-      .populate("candidate_id", "name email party")
+      .populate("candidate_id", "name email party photo")
       .populate("created_by", "name email");
 
     res.status(200).json({ success: true, wards });
@@ -52,19 +68,22 @@ const getWards = async (req, res) => {
   }
 };
 
-// ✅ Get single ward by ID (admin any; candidate: own or created)
+// Get single ward by ID (admin any; candidate: own)
 const getWardById = async (req, res) => {
   try {
+    // Ensure user is authenticated
+    if (!req.user || !req.user.id) {
+      return res.status(401).json({ success: false, message: "Unauthorized: User not authenticated" });
+    }
+
     const ward = await Ward.findById(req.params.id)
-      .populate("candidate_id", "name email party")
+      .populate("candidate_id", "name email party photo")
       .populate("created_by", "name email");
 
     if (!ward) return res.status(404).json({ success: false, message: "Ward not found" });
 
-    // Allow admin full access; candidate only own wards (by candidate_id or created_by)
-    if (req.user.role === "candidate" && 
-        String(ward.candidate_id._id) !== String(req.user._id) && 
-        String(ward.created_by._id) !== String(req.user._id)) {
+    const userCandidate = await Candidate.findOne({ created_by: req.user.id });
+    if (userCandidate && ward.candidate_id._id.toString() !== userCandidate._id.toString()) {
       return res.status(403).json({ success: false, message: "Access denied" });
     }
 
@@ -74,21 +93,29 @@ const getWardById = async (req, res) => {
   }
 };
 
-// ✅ Update ward (admin any; candidate: own wards by candidate_id or created_by)
+// Update ward (admin any; candidate: own only, no candidate_id change)
 const updateWard = async (req, res) => {
   try {
+    // Ensure user is authenticated
+    if (!req.user || !req.user.id) {
+      return res.status(401).json({ success: false, message: "Unauthorized: User not authenticated" });
+    }
+
     const ward = await Ward.findById(req.params.id);
 
     if (!ward) return res.status(404).json({ success: false, message: "Ward not found" });
 
-    // Allow admin full access; candidate only own wards
-    if (req.user.role === "candidate" && 
-        String(ward.candidate_id._id) !== String(req.user._id) && 
-        String(ward.created_by._id) !== String(req.user._id)) {
+    const userCandidate = await Candidate.findOne({ created_by: req.user.id });
+    if (userCandidate && ward.candidate_id._id.toString() !== userCandidate._id.toString()) {
       return res.status(403).json({ success: false, message: "Not authorized to update this ward" });
     }
+    // Prevent candidates from changing candidate_id
+    if (userCandidate) {
+      delete req.body.candidate_id;
+    }
 
-    const updatedWard = await Ward.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    const updatedWard = await Ward.findByIdAndUpdate(req.params.id, req.body, { new: true })
+      .populate("candidate_id", "name email party photo");
 
     res.status(200).json({ success: true, message: "Ward updated successfully", ward: updatedWard });
   } catch (error) {
@@ -96,21 +123,24 @@ const updateWard = async (req, res) => {
   }
 };
 
-// ✅ Delete ward (admin any; candidate: own wards by candidate_id or created_by)
+// Delete ward (admin any; candidate: own only)
 const deleteWard = async (req, res) => {
   try {
+    // Ensure user is authenticated
+    if (!req.user || !req.user.id) {
+      return res.status(401).json({ success: false, message: "Unauthorized: User not authenticated" });
+    }
+
     const ward = await Ward.findById(req.params.id);
 
     if (!ward) return res.status(404).json({ success: false, message: "Ward not found" });
 
-    // Allow admin full access; candidate only own wards
-    if (req.user.role === "candidate" && 
-        String(ward.candidate_id._id) !== String(req.user._id) && 
-        String(ward.created_by._id) !== String(req.user._id)) {
+    const userCandidate = await Candidate.findOne({ created_by: req.user.id });
+    if (userCandidate && ward.candidate_id._id.toString() !== userCandidate._id.toString()) {
       return res.status(403).json({ success: false, message: "Not authorized to delete this ward" });
     }
 
-    await ward.deleteOne();
+    await Ward.findByIdAndDelete(req.params.id);
 
     res.status(200).json({ success: true, message: "Ward deleted successfully" });
   } catch (error) {
