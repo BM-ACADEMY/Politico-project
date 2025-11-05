@@ -3,7 +3,7 @@ import PrivateRoute from "../context/PrivateRoute";
 
 export const volunteerRoutes = [
   {
-    path: '/volunteer-dashboard',
+    path: '/volunteers-dashboard',
     element: <PrivateRoute allowedRole="volunteers"><>Dash</></PrivateRoute>,
   },
 //   {
