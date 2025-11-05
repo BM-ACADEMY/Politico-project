@@ -4,6 +4,7 @@ import Voters from "@/modules/Candidates/voters/Voters";
 import Events from "@/modules/Candidates/Events/Events";
 import Banners from "@/modules/Candidates/Banners/Banners";
 import Dashboard from "@/modules/Candidates/Dashboard/Dashboard";
+import Teams from "@/modules/Candidates/Teams/Teams";
 
 export const candidateRoutes = [
   {
@@ -25,6 +26,10 @@ export const candidateRoutes = [
   {
     path: '/candidate-dashboard/banner',
     element: <PrivateRoute allowedRole="candidate"><Banners/></PrivateRoute>,
+  },
+  {
+    path: '/candidate-dashboard/teams',
+    element: <PrivateRoute allowedRole="candidate"><Teams/></PrivateRoute>,
   },
 
 ];
