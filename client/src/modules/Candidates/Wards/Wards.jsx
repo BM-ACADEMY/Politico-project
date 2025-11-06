@@ -17,7 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Trash2, Loader2, Edit, Trash, X } from "lucide-react";
+import { Plus, Trash2, Loader2, Edit, Trash, X, Eye } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -28,6 +28,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AuthContext } from "@/modules/Common/context/AuthContext";
 import { showToast } from "@/modules/Common/toast/customToast";
 import axiosInstance from "@/modules/Common/axios/axios";
@@ -36,6 +37,7 @@ const Wards = () => {
   const { user } = useContext(AuthContext);
   const [open, setOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
+  const [viewStreetsOpen, setViewStreetsOpen] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [loading, setLoading] = useState(false);
   const [editLoading, setEditLoading] = useState(false);
@@ -44,6 +46,7 @@ const Wards = () => {
   const [error, setError] = useState("");
   const [candidates, setCandidates] = useState([]);
   const [editingWard, setEditingWard] = useState(null);
+  const [viewingWard, setViewingWard] = useState(null);
   const [wardToDelete, setWardToDelete] = useState(null);
 
   // ---------- Ward Form ----------
@@ -74,6 +77,8 @@ const Wards = () => {
   const [editLocalitiesInput, setEditLocalitiesInput] = useState("");
   const [editLocalities, setEditLocalities] = useState([]);
   const [editAddressDetails, setEditAddressDetails] = useState([]);
+  const [editingLocalityIndex, setEditingLocalityIndex] = useState(null);
+  const [editingLocalityValue, setEditingLocalityValue] = useState("");
 
   // ---------- Fetch Data ----------
   const fetchCandidates = async () => {
@@ -104,6 +109,19 @@ const Wards = () => {
     fetchWards();
     fetchCandidates();
   }, []);
+
+  // Calculate today's created wards
+  const getTodayCreatedCount = () => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    return wards.filter(ward => {
+      const createdAt = new Date(ward.createdAt);
+      return createdAt >= today && createdAt < tomorrow;
+    }).length;
+  };
 
   // ---------- Create Ward Handlers ----------
   const handleWardChange = (e) => {
@@ -272,6 +290,7 @@ const Wards = () => {
     setEditLocalities(ward.localities || []);
     setEditLocalitiesInput("");
     setEditAddressDetails(ward.address_details || []);
+    setEditingLocalityIndex(null);
     setEditOpen(true);
   };
 
@@ -310,6 +329,45 @@ const Wards = () => {
 
     setEditLocalities((prev) => prev.filter((l) => l !== loc));
     showToast("info", `Removed locality "${loc}".`);
+  };
+
+  const startEditLocality = (index, value) => {
+    setEditingLocalityIndex(index);
+    setEditingLocalityValue(value);
+  };
+
+  const saveEditLocality = (index) => {
+    if (!editingLocalityValue.trim()) {
+      showToast("error", "Locality name cannot be empty");
+      return;
+    }
+
+    // Check if the new value conflicts with existing (case-insensitive)
+    const normalizedNew = editingLocalityValue.trim().toLowerCase();
+    const conflict = editLocalities.some((loc, i) => i !== index && loc.toLowerCase() === normalizedNew);
+    if (conflict) {
+      showToast("error", "Locality name already exists");
+      return;
+    }
+
+    // Check if used in addresses (but since we're editing, update references if needed - for simplicity, just warn if changing used one)
+    const usedInAddresses = editAddressDetails.some(addr => addr.locality.toLowerCase() === editLocalities[index].toLowerCase());
+    if (usedInAddresses && normalizedNew !== editLocalities[index].toLowerCase()) {
+      // Optionally update addresses, but for now, just warn
+      showToast("warning", `Locality "${editLocalities[index]}" is used in addresses. Updating it here won't auto-update addresses.`);
+    }
+
+    const updated = [...editLocalities];
+    updated[index] = editingLocalityValue.trim();
+    setEditLocalities(updated);
+    setEditingLocalityIndex(null);
+    setEditingLocalityValue("");
+    showToast("success", "Locality updated successfully");
+  };
+
+  const cancelEditLocality = () => {
+    setEditingLocalityIndex(null);
+    setEditingLocalityValue("");
   };
 
   const handleEditAddressChange = (index, field, value) => {
@@ -411,6 +469,12 @@ const Wards = () => {
     }
   };
 
+  // ---------- View Streets ----------
+  const openViewStreetsModal = (ward) => {
+    setViewingWard(ward);
+    setViewStreetsOpen(true);
+  };
+
   // ---------- Delete Ward ----------
   const handleDeleteWard = (ward) => {
     setWardToDelete(ward);
@@ -436,7 +500,7 @@ const Wards = () => {
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
-      <div className="flex justify-between items-center">
+      <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold">Wards Management</h1>
 
         {/* Create Ward Dialog */}
@@ -677,6 +741,30 @@ const Wards = () => {
         </Dialog>
       </div>
 
+      {/* Stats Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Wards</CardTitle>
+            <Plus className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{wards.length}</div>
+            <p className="text-xs text-muted-foreground">+{(wards.length > 0 ? wards.length : 0)} from all time</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Today's Created Wards</CardTitle>
+            <Plus className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{getTodayCreatedCount()}</div>
+            <p className="text-xs text-muted-foreground">Wards created today</p>
+          </CardContent>
+        </Card>
+      </div>
+
       {/* Edit Ward Dialog */}
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
@@ -776,10 +864,10 @@ const Wards = () => {
               </div>
             </div>
 
-            {/* Localities */}
+            {/* Localities - Different format: List with edit/remove */}
             <div className="space-y-3 p-4 border rounded-lg bg-blue-50">
               <Label>Localities *</Label>
-              <div className="flex gap-2">
+              <div className="flex gap-2 mb-3">
                 <Input
                   placeholder="e.g., Andheri, Bandra, Juhu"
                   value={editLocalitiesInput}
@@ -793,20 +881,57 @@ const Wards = () => {
                 </Button>
               </div>
               {editLocalities.length > 0 && (
-                <div className="flex flex-wrap gap-2 mt-2">
-                  {editLocalities.map((loc) => (
-                    <Badge key={loc} variant="secondary" className="flex items-center gap-1">
-                      {loc}
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="h-4 w-4 p-0 ml-1"
-                        onClick={() => editRemoveLocality(loc)}
-                      >
-                        <X className="h-3 w-3" />
-                      </Button>
-                    </Badge>
+                <div className="space-y-2">
+                  {editLocalities.map((loc, index) => (
+                    <div key={index} className="flex items-center gap-2 p-2 bg-white rounded border">
+                      {editingLocalityIndex === index ? (
+                        <>
+                          <Input
+                            value={editingLocalityValue}
+                            onChange={(e) => setEditingLocalityValue(e.target.value)}
+                            className="flex-1"
+                            autoFocus
+                          />
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            onClick={() => saveEditLocality(index)}
+                          >
+                            Save
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            onClick={cancelEditLocality}
+                          >
+                            Cancel
+                          </Button>
+                        </>
+                      ) : (
+                        <>
+                          <span className="flex-1 font-medium">{loc}</span>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            onClick={() => startEditLocality(index, loc)}
+                          >
+                            <Edit className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            className="text-red-600"
+                            onClick={() => editRemoveLocality(loc)}
+                          >
+                            <X className="w-4 h-4" />
+                          </Button>
+                        </>
+                      )}
+                    </div>
                   ))}
                 </div>
               )}
@@ -906,6 +1031,34 @@ const Wards = () => {
         </DialogContent>
       </Dialog>
 
+      {/* View Streets Dialog */}
+      <Dialog open={viewStreetsOpen} onOpenChange={setViewStreetsOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Streets for {viewingWard?.ward_name}</DialogTitle>
+            <DialogDescription>View all address details and streets.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 mt-4">
+            {viewingWard?.address_details?.length > 0 ? (
+              <div className="space-y-2">
+                {viewingWard.address_details.map((addr, index) => (
+                  <div key={index} className="p-3 border rounded-lg bg-gray-50">
+                    <p>Locality: {addr.locality}</p>
+                    <p>Street: {addr.street}</p>
+                    <p>Postal Code: {addr.postal_code}</p>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-center text-gray-500">No streets available.</p>
+            )}
+          </div>
+          <div className="flex justify-end gap-3 pt-4">
+            <Button onClick={() => setViewStreetsOpen(false)}>Close</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Delete Confirmation Dialog */}
       <Dialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
         <DialogContent>
@@ -937,7 +1090,7 @@ const Wards = () => {
       </Dialog>
 
       {/* Wards Table */}
-      <div className="bg-white rounded-lg shadow overflow-hidden">
+      <div className="bg-white rounded-lg shadow border overflow-hidden">
         <Table>
           <TableCaption>
             {fetching
@@ -954,19 +1107,20 @@ const Wards = () => {
               <TableHead>District</TableHead>
               <TableHead>Population</TableHead>
               <TableHead>Addresses</TableHead>
+              <TableHead>Street</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {fetching ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center py-8">
+                <TableCell colSpan={8} className="text-center py-8">
                   <Loader2 className="w-6 h-6 animate-spin mx-auto" />
                 </TableCell>
               </TableRow>
             ) : wards.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center py-8 text-gray-500">
+                <TableCell colSpan={8} className="text-center py-8 text-gray-500">
                   No wards found. Create one to get started.
                 </TableCell>
               </TableRow>
@@ -995,6 +1149,16 @@ const Wards = () => {
                     <span className="text-sm font-medium">
                       {ward.address_details?.length || 0} address(es)
                     </span>
+                  </TableCell>
+                  <TableCell>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => openViewStreetsModal(ward)}
+                      className="text-gray-600"
+                    >
+                      view
+                    </Button>
                   </TableCell>
                   <TableCell className="text-right space-x-2">
                     <Button

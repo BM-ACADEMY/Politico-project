@@ -8,7 +8,10 @@ import {
 } from "react-icons/md";
 import { FaBriefcase } from "react-icons/fa";
 import { MdPlaylistAdd } from "react-icons/md";
-import { Calendar, Image, User, User2Icon, Users } from "lucide-react";
+import { Calendar, ChartColumn, ChartLine, Image, LayoutDashboard, MapPin, User, User2Icon, Users, Vote } from "lucide-react";
+
+import { RiTeamLine } from "react-icons/ri";
+import { LuImageUp } from "react-icons/lu";
 
 export const sidebarMenuItems = {
   root_admin: [
@@ -21,12 +24,13 @@ export const sidebarMenuItems = {
     { url: "/admin-dashboard/streets-wards", title: "Streets / Wards", icon: MdChecklist },
   ],
   candidate: [
-    { url: "/candidate-dashboard", title: "Dashboard", icon: MdDashboard },
-    { url: "/candidate-dashboard/banner", title: "Banners", icon: Image },
-    { url: "/candidate-dashboard/streets-wards", title: "Streets / Wards", icon: FaBriefcase },
-    { url: "/candidate-dashboard/voters", title: "Voters", icon: Users },
-    { url: "/candidate-dashboard/events", title: "Events", icon: Calendar },
-    { url: "/candidate-dashboard/teams", title: "Teams", icon: User2Icon },
+    { url: "/candidate-dashboard", title: "Dashboard", icon: LayoutDashboard  },
+    { url: "/candidate-dashboard/streets-wards", title: "Streets / Wards", icon: MapPin },
+    { url: "/candidate-dashboard/events", title: "My Events", icon: Calendar },
+    { url: "/candidate-dashboard/voters", title: "My Voters", icon: Vote },
+    { url: "/candidate-dashboard/teams", title: "My Teams", icon: RiTeamLine },
+    { url: "/candidate-dashboard/reports", title: "My Reports", icon: ChartLine },
+    { url: "/candidate-dashboard/banner", title: "Banners", icon: LuImageUp },
   ],
   volunteers: [
     { url: "/volunteer-dashboard", title: "Dashboard", icon: MdDashboard },
