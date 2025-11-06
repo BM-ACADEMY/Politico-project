@@ -5,6 +5,7 @@ import Events from "@/modules/Candidates/Events/Events";
 import Banners from "@/modules/Candidates/Banners/Banners";
 import Dashboard from "@/modules/Candidates/Dashboard/Dashboard";
 import Teams from "@/modules/Candidates/Teams/Teams";
+import Reports from "@/modules/Candidates/Reports/Reports";
 
 export const candidateRoutes = [
   {
@@ -30,6 +31,10 @@ export const candidateRoutes = [
   {
     path: '/candidate-dashboard/teams',
     element: <PrivateRoute allowedRole="candidate"><Teams/></PrivateRoute>,
+  },
+  {
+    path: '/candidate-dashboard/reports',
+    element: <PrivateRoute allowedRole="candidate"><Reports/></PrivateRoute>,
   },
 
 ];

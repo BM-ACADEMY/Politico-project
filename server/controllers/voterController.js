@@ -1,11 +1,17 @@
-// Updated controllers/voterController.js (use deleteFile without entityType; fix deleteVoter folder cleanup)
+// Updated controllers/voterController.js
+// Fix: Ensure wardFilter is converted to ObjectId for consistent querying in find() and aggregate()
+// This resolves potential type mismatch issues where ward is stored as ObjectId but query uses string
+// Also, ensure wardIds in validation are strings for comparison
+
 const Voter = require("../models/Voter");
 const Ward = require("../models/ward");
+const Candidate = require("../models/candidateModel");
+const mongoose = require("mongoose"); // Ensure mongoose is imported for ObjectId
 const path = require("path");
 const fs = require("fs");
-const { processFile, deleteFile } = require("../utils/upload"); // Updated import
+const { processFile, deleteFile } = require("../utils/upload");
 
-// ✅ Create Voter (unchanged except relying on updated processFile)
+// ✅ Create Voter (unchanged)
 const createVoter = async (req, res) => {
   try {
     const {
@@ -15,6 +21,7 @@ const createVoter = async (req, res) => {
       phone,
       voter_id,
       aadhar_number,
+      support, // New field
       ward: wardId,
       address: { house_no, locality, street, city, postal_code },
     } = req.body;
@@ -27,14 +34,15 @@ const createVoter = async (req, res) => {
       return res.status(400).json({ success: false, message: "Voter image and Aadhar image are required" });
     }
 
-    // Validate ward exists and access (admin full; candidate: own wards)
+    // Validate ward exists
     const ward = await Ward.findById(wardId);
     if (!ward) {
       return res.status(404).json({ success: false, message: "Ward not found" });
     }
 
-    if (req.user.role === "candidate" && 
-        String(ward.candidate_id) !== String(req.user._id)) {
+    // Access check (admin full; candidate: own wards) - Updated to use userCandidate for consistency
+    const userCandidate = await Candidate.findOne({ created_by: req.user.id });
+    if (userCandidate && String(ward.candidate_id) !== String(userCandidate._id)) {
       return res.status(403).json({ success: false, message: "Access denied: Can only add voters to your wards" });
     }
 
@@ -62,7 +70,7 @@ const createVoter = async (req, res) => {
     const voterImagePath = await processFile(
       voterImageFile.buffer,
       voterImageFile.mimetype,
-      entityType, // This will create Uploads/voters/{name}/images/ and adjust URL
+      entityType,
       voterImageFilename
     );
 
@@ -84,6 +92,7 @@ const createVoter = async (req, res) => {
       voter_image: voterImagePath,
       aadhar_number,
       aadhar_image: aadharImagePath,
+      support: support || 'neutral', // Default to neutral
       ward: wardId,
       address: { house_no, locality, street, city, postal_code },
       created_by: req.user.id,
@@ -100,25 +109,86 @@ const createVoter = async (req, res) => {
   }
 };
 
-// ✅ Get all voters (unchanged)
+// ✅ Get all voters (updated: convert wardFilter to ObjectId)
 const getVoters = async (req, res) => {
   try {
-    let query = { created_by: req.user.id }; // Default to created_by for security
-    if (req.user.role === "admin") {
-      query = {}; // Admin sees all
-    } else if (req.user.role === "candidate") {
+    let baseQuery = {}; // Base query for access control
+    const userCandidate = await Candidate.findOne({ created_by: req.user.id });
+    if (userCandidate) {
       // Candidates see voters in their wards
-      const userWards = await Ward.find({ candidate_id: req.user._id }).select("_id");
-      const wardIds = userWards.map((w) => w._id);
-      query.ward = { $in: wardIds };
+      const userWards = await Ward.find({ candidate_id: userCandidate._id }).select("_id");
+      const wardIds = userWards.map((w) => w._id.toString()); // Strings for comparison
+      baseQuery.ward = { $in: userWards.map((w) => w._id) }; // ObjectIds for $in
+    } else {
+      // Admin/other see all
+      baseQuery = {};
     }
 
-    const voters = await Voter.find(query)
-      .populate("ward", "ward_name ward_number candidate_id")
-      .populate("created_by", "name email");
+    const { page = 1, limit = 10, support, ward: wardFilter } = req.query;
+    const filter = {};
 
-    res.status(200).json({ success: true, voters });
+    // Apply support filter
+    if (support && ['neutral', 'supporter', 'opposition'].includes(support)) {
+      filter.support = support;
+    }
+
+    // Apply ward filter (with access check and ObjectId conversion)
+    if (wardFilter) {
+      const wardObjId = new mongoose.Types.ObjectId(wardFilter); // Convert to ObjectId
+      if (userCandidate) {
+        // For candidates: ensure ward is one of theirs
+        const userWards = await Ward.find({ candidate_id: userCandidate._id }).select("_id");
+        const wardIds = userWards.map((w) => w._id.toString());
+        if (!wardIds.includes(wardFilter)) {
+          return res.status(403).json({ success: false, message: "Access denied: Cannot filter by this ward" });
+        }
+        filter.ward = wardObjId;
+      } else {
+        // For admins: allow any ward
+        filter.ward = wardObjId;
+      }
+    }
+
+    const finalQuery = { ...baseQuery, ...filter };
+
+    const voters = await Voter.find(finalQuery)
+      .populate("ward", "ward_name ward_number")
+      .populate("created_by", "name email")
+      .limit(parseInt(limit))
+      .skip((parseInt(page) - 1) * parseInt(limit))
+      .sort({ createdAt: -1 });
+
+    const total = await Voter.countDocuments(finalQuery);
+
+    // Calculate counts based on finalQuery (filtered by ward/support) - use ObjectId in match
+    const counts = await Voter.aggregate([
+      { $match: finalQuery },
+      {
+        $group: {
+          _id: "$support",
+          count: { $sum: 1 }
+        }
+      },
+      {
+        $group: {
+          _id: null,
+          total: { $sum: "$count" },
+          neutral: { $sum: { $cond: [{ $eq: ["$_id", "neutral"] }, "$count", 0] } },
+          supporter: { $sum: { $cond: [{ $eq: ["$_id", "supporter"] }, "$count", 0] } },
+          opposition: { $sum: { $cond: [{ $eq: ["$_id", "opposition"] }, "$count", 0] } }
+        }
+      }
+    ]);
+    const countResult = counts[0] || { total: 0, neutral: 0, supporter: 0, opposition: 0 };
+
+    res.status(200).json({ 
+      success: true, 
+      voters, 
+      counts: countResult,
+      pagination: { page: parseInt(page), limit: parseInt(limit), total }
+    });
   } catch (error) {
+    console.error("Get Voters Error:", error); // Added logging for debugging
     res.status(500).json({ success: false, message: "Error fetching voters", error: error.message });
   }
 };
@@ -127,17 +197,18 @@ const getVoters = async (req, res) => {
 const getVoterById = async (req, res) => {
   try {
     const voter = await Voter.findById(req.params.id)
-      .populate("ward", "ward_name ward_number candidate_id")
+      .populate("ward", "ward_name ward_number")
       .populate("created_by", "name email");
 
     if (!voter) return res.status(404).json({ success: false, message: "Voter not found" });
 
-    // Access check
-    if (req.user.role === "candidate") {
-      const userWards = await Ward.find({ candidate_id: req.user._id }).select("_id");
+    // Access check (use userCandidate for consistency)
+    const userCandidate = await Candidate.findOne({ created_by: req.user.id });
+    if (userCandidate) {
+      const userWards = await Ward.find({ candidate_id: userCandidate._id }).select("_id");
       const wardIds = userWards.map((w) => w._id);
-      if (!wardIds.includes(voter.ward._id) && String(voter.created_by._id) !== String(req.user._id)) {
-        return res.status(403).json({ success: false, message: "Access denied" });
+      if (!wardIds.includes(voter.ward._id) && String(voter.created_by._id) !== String(req.user.id)) {
+        return res.status(403).json({ success: false, message: "Not authorized to view this voter" });
       }
     }
 
@@ -147,18 +218,21 @@ const getVoterById = async (req, res) => {
   }
 };
 
-// ✅ Update voter (updated deleteFile calls; rely on updated processFile)
+// ✅ Update voter (unchanged)
 const updateVoter = async (req, res) => {
   try {
-    const voter = await Voter.findById(req.params.id).populate("ward");
+    const voter = await Voter.findById(req.params.id)
+      .populate("ward", "ward_name ward_number")
+      .populate("created_by", "name email");
 
     if (!voter) return res.status(404).json({ success: false, message: "Voter not found" });
 
-    // Access check (similar to get)
-    if (req.user.role === "candidate") {
-      const userWards = await Ward.find({ candidate_id: req.user._id }).select("_id");
+    // Access check (use userCandidate for consistency)
+    const userCandidate = await Candidate.findOne({ created_by: req.user.id });
+    if (userCandidate) {
+      const userWards = await Ward.find({ candidate_id: userCandidate._id }).select("_id");
       const wardIds = userWards.map((w) => w._id);
-      if (!wardIds.includes(voter.ward._id) && String(voter.created_by._id) !== String(req.user._id)) {
+      if (!wardIds.includes(voter.ward._id) && String(voter.created_by._id) !== String(req.user.id)) {
         return res.status(403).json({ success: false, message: "Not authorized to update this voter" });
       }
     }
@@ -182,6 +256,14 @@ const updateVoter = async (req, res) => {
       req.body.aadhar_image = newAadharImagePath;
     }
 
+    // Handle support if provided
+    if (req.body.support) {
+      const validSupports = ['neutral', 'supporter', 'opposition'];
+      if (!validSupports.includes(req.body.support)) {
+        return res.status(400).json({ success: false, message: "Invalid support status" });
+      }
+    }
+
     const updatedVoter = await Voter.findByIdAndUpdate(req.params.id, req.body, { new: true })
       .populate("ward", "ward_name ward_number")
       .populate("created_by", "name email");
@@ -192,18 +274,19 @@ const updateVoter = async (req, res) => {
   }
 };
 
-// ✅ Delete voter (updated deleteFile calls; improved folder cleanup)
+// ✅ Delete voter (unchanged)
 const deleteVoter = async (req, res) => {
   try {
     const voter = await Voter.findById(req.params.id);
 
     if (!voter) return res.status(404).json({ success: false, message: "Voter not found" });
 
-    // Access check (similar to update)
-    if (req.user.role === "candidate") {
-      const userWards = await Ward.find({ candidate_id: req.user._id }).select("_id");
+    // Access check (use userCandidate for consistency)
+    const userCandidate = await Candidate.findOne({ created_by: req.user.id });
+    if (userCandidate) {
+      const userWards = await Ward.find({ candidate_id: userCandidate._id }).select("_id");
       const wardIds = userWards.map((w) => w._id);
-      if (!wardIds.includes(voter.ward) && String(voter.created_by._id) !== String(req.user._id)) {
+      if (!wardIds.includes(voter.ward) && String(voter.created_by._id) !== String(req.user.id)) {
         return res.status(403).json({ success: false, message: "Not authorized to delete this voter" });
       }
     }
@@ -235,13 +318,15 @@ const deleteVoter = async (req, res) => {
   }
 };
 
-// ✅ Get wards for dropdown (unchanged)
+// ✅ Get wards for dropdown (unchanged - already filters for candidates)
 const getWardsForVoter = async (req, res) => {
   try {
     let query = {};
-    if (req.user.role === "candidate") {
-      query = { candidate_id: req.user._id };
+    const userCandidate = await Candidate.findOne({ created_by: req.user.id });
+    if (userCandidate) {
+      query = { candidate_id: userCandidate._id };
     }
+    // For users without candidate profile (e.g., admin), show all wards
     const wards = await Ward.find(query).select("ward_name ward_number localities address_details district state");
 
     res.status(200).json({ success: true, wards });

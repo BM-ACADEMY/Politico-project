@@ -94,6 +94,8 @@ app.use("/api/events", require("./routes/EventRoutes"));
 app.use("/api/banners", require("./routes/bannerroutes"));
 app.use("/api/volunteers", require("./routes/volunteerRoutes"));
 app.use("/api/tasks", require("./routes/taskRoutes"));
+app.use("/api/reports", require("./routes/dashboardroute/reportsRoutes"));
+
 
 
 // Dasboards
