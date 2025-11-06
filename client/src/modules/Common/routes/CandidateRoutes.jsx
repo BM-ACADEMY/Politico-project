@@ -36,5 +36,4 @@ export const candidateRoutes = [
     path: '/candidate-dashboard/reports',
     element: <PrivateRoute allowedRole="candidate"><Reports/></PrivateRoute>,
   },
-
 ];
