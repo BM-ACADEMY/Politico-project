@@ -390,7 +390,7 @@ const Voters = () => {
                 Add Voter
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-h-[90vh] overflow-y-auto">
+            <DialogContent className="max-h-[90vh] overflow-y-auto ">
               <DialogHeader>
                 <DialogTitle>{currentVoter ? 'Edit Voter' : 'Add Voter'}</DialogTitle>
                 <DialogDescription>
