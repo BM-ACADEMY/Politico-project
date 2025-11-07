@@ -33,10 +33,9 @@ export const sidebarMenuItems = {
     { url: "/candidate-dashboard/banner", title: "Banners", icon: LuImageUp },
   ],
   volunteers: [
-    { url: "/volunteer-dashboard", title: "Dashboard", icon: MdDashboard },
-    { url: "/volunteer-dashboard/tasks", title: "Tasks", icon: MdChecklist },
-    { url: "/volunteer-dashboard/events", title: "Events", icon: MdEvent },
-    { url: "/volunteer-dashboard/profile", title: "Profile", icon: MdPerson },
+    { url: "/volunteers-dashboard", title: "Dashboard", icon: MdDashboard },
+    { url: "/volunteers-dashboard/voters", title: "My Voters", icon: Vote },
+
   ],
 };
 
