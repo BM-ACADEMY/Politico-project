@@ -13,7 +13,14 @@ dotenv.config();
 const app = express();
 
 // ======== CORS Setup ========
-const allowedOrigins = [process.env.CLIENT_URL,"https://admin.namathumakkalkazhagam.com","https://www.admin.namathumakkalkazhagam.com","https://namathumakkalkazhagam.com","https://www.namathumakkalkazhagam.com"];
+const allowedOrigins = [
+  process.env.CLIENT_URL,
+  "http://localhost:5174",  // Ensure both ports are here (added 5173 for completeness)
+  "https://admin.namathumakkalkazhagam.com",
+  "https://www.admin.namathumakkalkazhagam.com",
+  "https://namathumakkalkazhagam.com",
+  "https://www.namathumakkalkazhagam.com"
+];
 
 const corsOptions = {
   origin: (origin, callback) => {
@@ -56,37 +63,49 @@ app.use(helmet.crossOriginResourcePolicy({ policy: "cross-origin" })); // Allow 
 app.use(express.json());
 app.use(cookieParser());
 
-
-
-// Serve static files for uploaded images with CORS headers
+// ======== FIXED: Serve static files for uploaded images with DYNAMIC CORS headers ========
+// Now checks req.origin dynamically, like general CORS
 app.use(
   "/Uploads",
   (req, res, next) => {
-    console.log(`Serving static file: ${req.path}`);
-    res.setHeader("Access-Control-Allow-Origin", process.env.CLIENT_URL);
+    const origin = req.headers.origin;
+    console.log(`Serving static file: ${req.path} from origin: ${origin}`);
+
+    // Dynamic check: Allow if origin is in allowedOrigins (or no origin)
+    if (!origin || allowedOrigins.includes(origin)) {
+      // Echo back the request's origin (secure & matches browser expectation)
+      res.setHeader("Access-Control-Allow-Origin", origin || "*");
+    } else {
+      // Reject with error log (optional: or set to false to block)
+      console.error(`Static file CORS rejected origin: ${origin}`);
+      return res.status(403).json({ error: "CORS not allowed for this origin" });
+    }
+
     res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
     res.setHeader("Access-Control-Allow-Headers", "Origin, Content-Type, Accept");
     res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
-    res.setHeader("Cache-Control", "no-store");
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
+
     if (req.method === "OPTIONS") {
       res.sendStatus(200);
-    } else {
-      next();
+      return;
     }
+
+    next();
   },
   express.static(path.join(__dirname, "Uploads"))
 );
 
 // ======== Routes ========
+// (unchanged)
 app.get("/", (req, res) => {
   res.send("API is running...");
 });
 
-
 app.use("/api/auth", require("./routes/authRoutes"));
 app.use("/api/roles", require("./routes/roleRoutes"));
 app.use("/api/users", require("./routes/userRoutes"));
-app.use("/api/party", require("./routes/partyRoutes"))
+app.use("/api/party", require("./routes/partyRoutes"));
 app.use("/api/candidates", require("./routes/candidateRoutes"));
 app.use("/api/wards", require("./routes/wardRoutes"));
 app.use("/api/voters", require("./routes/voterRoutes"));
@@ -94,15 +113,11 @@ app.use("/api/events", require("./routes/EventRoutes"));
 app.use("/api/banners", require("./routes/bannerroutes"));
 app.use("/api/volunteers", require("./routes/volunteerRoutes"));
 app.use("/api/tasks", require("./routes/taskRoutes"));
+app.use("/api/joinus", require("./routes/joinRoutes"));
+
+// Dashboards (unchanged)
 app.use("/api/reports", require("./routes/dashboardroute/reportsRoutes"));
-
-
-
-// Dasboards
 app.use("/api/rootdashboard", require("./routes/dashboardroute/dashboardRoutes"));
-
-
-
 
 // ======== Server & DB Connection ========
 const PORT = process.env.PORT || 4000;

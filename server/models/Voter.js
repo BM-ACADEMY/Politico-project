@@ -19,9 +19,9 @@ const voterSchema = new mongoose.Schema(
     dob: { type: Date },
     phone: { type: String, required: true, unique: true },
     voter_id: { type: String, required: true, unique: true },
-    voter_image: { type: String, required: true },
+   voter_image: { type: String, required: false, default: null },
     aadhar_number: { type: String, required: true, unique: true },
-    aadhar_image: { type: String, required: true },
+    aadhar_image: { type: String, required: false, default: null },
     support: { 
       type: String, 
       enum: ['neutral', 'supporter', 'opposition'], 

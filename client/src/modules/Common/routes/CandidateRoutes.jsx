@@ -6,6 +6,7 @@ import Banners from "@/modules/Candidates/Banners/Banners";
 import Dashboard from "@/modules/Candidates/Dashboard/Dashboard";
 import Teams from "@/modules/Candidates/Teams/Teams";
 import Reports from "@/modules/Candidates/Reports/Reports";
+import Joinus from "@/modules/Candidates/Joinus/Joinus";
 
 export const candidateRoutes = [
   {
@@ -35,5 +36,9 @@ export const candidateRoutes = [
   {
     path: '/candidate-dashboard/reports',
     element: <PrivateRoute allowedRole="candidate"><Reports/></PrivateRoute>,
+  },
+  {
+    path: '/candidate-dashboard/joinus',
+    element: <PrivateRoute allowedRole="candidate"><Joinus/></PrivateRoute>,
   },
 ];

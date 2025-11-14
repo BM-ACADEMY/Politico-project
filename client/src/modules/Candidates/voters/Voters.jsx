@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useContext, useMemo } from 'react';
 import { AuthContext } from '@/modules/Common/context/AuthContext';
 import axiosInstance from '@/modules/Common/axios/axios';
+import * as XLSX from 'xlsx';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -38,7 +39,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Edit, Trash2, Plus, Eye, MoreHorizontal } from 'lucide-react';
+import { Edit, Trash2, Plus, Eye, MoreHorizontal, Upload, Download } from 'lucide-react';
 import { showToast } from '@/modules/Common/toast/customToast';
 import {
   Card,
@@ -51,6 +52,7 @@ import {
 const Voters = () => {
   const { user } = useContext(AuthContext);
   const [open, setOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const [viewImageOpen, setViewImageOpen] = useState(false);
   const [selectedImages, setSelectedImages] = useState({ voter_image: '', aadhar_image: '' });
   const [wards, setWards] = useState([]);
@@ -80,6 +82,8 @@ const Voters = () => {
     },
   });
   const [loading, setLoading] = useState(false);
+  const [importLoading, setImportLoading] = useState(false);
+  const [importFile, setImportFile] = useState(null);
   const [filters, setFilters] = useState({ ward: 'all', support: 'all', created_by: 'all' });
   const [uniqueCreators, setUniqueCreators] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -117,6 +121,7 @@ const Voters = () => {
       const response = await axiosInstance.get('/voters/wards');
       setWards(response.data.wards);
     } catch (error) {
+      console.log(error);
       showToast('error', 'Failed to fetch wards');
     }
   };
@@ -137,7 +142,6 @@ const Voters = () => {
       setVoters(response.data.voters);
       setCounts(response.data.stats);
 
-      // Compute unique creators for filter
       const creators = response.data.voters.reduce((acc, voter) => {
         if (voter.created_by?._id && !acc.some(c => c._id === voter.created_by._id)) {
           acc.push(voter.created_by);
@@ -146,8 +150,75 @@ const Voters = () => {
       }, []);
       setUniqueCreators(creators);
     } catch (error) {
+      console.log(error);
       showToast('error', 'Failed to fetch voters');
     }
+  };
+
+  // Updated downloadTemplate using the second Excel file's structure
+  const downloadTemplate = () => {
+    // Use the data from voter_import_template (2).xlsx
+    const templateData = [
+      {
+        'Name': 'John Doe',
+        "Father's Name": 'Jane Doe',
+        'DOB': '1990-01-01',
+        'Phone': '1234567890',
+        'Voter ID': 'ABC1234567',
+        'Aadhar Number': '123456789012',
+        'Support': 'Neutral',
+        'Ward Name': 'reddiyarpalayam',
+        'House No': '12A',
+        'Locality': 'pudhu nagar',
+        'Street': '1st cross',
+        'City': 'puducherry',
+        'Postal Code': '605010'
+      },
+      {
+        'Name': 'Jane Smith',
+        "Father's Name": 'John Smith',
+        'DOB': '1985-05-15',
+        'Phone': '0987654321',
+        'Voter ID': 'DEF9876543',
+        'Aadhar Number': '987654321098',
+        'Support': 'Supporter',
+        'Ward Name': 'reddiyarpalayam',
+        'House No': '34B',
+        'Locality': 'pudhu nagar',
+        'Street': '2nd',
+        'City': 'puducherry',
+        'Postal Code': '605010'
+      }
+    ];
+
+    // Create worksheet for data
+    const ws = XLSX.utils.json_to_sheet(templateData);
+
+    // Instructions sheet (same as in voter_import_template (2).xlsx)
+    const instructions = [
+      ['Template for Voter Import'],
+      ['Instructions:'],
+      ['- Fill in the data starting from row 3.'],
+      ['- DOB: Use YYYY-MM-DD format.'],
+      ['- Phone: 10 digits only.'],
+      ['- Voter ID: 3 uppercase letters + 7 digits (e.g., ABC1234567).'],
+      ['- Aadhar Number: 12 digits.'],
+      ['- Support: Neutral, Supporter, or Opposition.'],
+      ['- Ward Name: Exact match with ward names (e.g., reddiyarpalayam).'],
+      ['- Ensure Locality and Street match the ward\'s address details.'],
+      [''], // empty row
+      ['Data starts here:']
+    ];
+    const instructionsWs = XLSX.utils.aoa_to_sheet(instructions);
+
+    // Create workbook and append sheets
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, instructionsWs, 'Instructions');
+    XLSX.utils.book_append_sheet(wb, ws, 'Voters');
+
+    // Write file
+    XLSX.writeFile(wb, 'voter_import_template.xlsx');
+    showToast('success', 'Template downloaded successfully');
   };
 
   const handleWardChange = (value) => {
@@ -228,6 +299,152 @@ const Voters = () => {
 
   const handleFileChange = (e, key) => {
     setFormData((prev) => ({ ...prev, [key]: e.target.files?.[0] || null }));
+  };
+
+  const handleFileSelect = (e) => {
+    setImportFile(e.target.files?.[0] || null);
+  };
+
+  const handleImport = async () => {
+    if (!importFile) {
+      showToast('error', 'Please select an Excel file');
+      return;
+    }
+
+    setImportLoading(true);
+    let successCount = 0;
+    let errorCount = 0;
+
+    try {
+      const data = await importFile.arrayBuffer();
+      const workbook = XLSX.read(data, { type: 'array' });
+      const sheetName = workbook.SheetNames[0];
+      const sheet = workbook.Sheets[sheetName];
+      const jsonData = XLSX.utils.sheet_to_json(sheet);
+
+      if (jsonData.length === 0) {
+        showToast('error', 'No data found in the Excel file');
+        return;
+      }
+
+      const dataRows = jsonData.filter(row => row['Name'] && row['Name'].toString().trim() !== '');
+
+      const promises = dataRows.map(async (row) => {
+        try {
+          const cleanPhone = (row['Phone'] || '').toString().replace(/\D/g, '').slice(0, 10);
+          const cleanVoterId = (row['Voter ID'] || '').toString().toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 10);
+          const cleanAadhar = (row['Aadhar Number'] || '').toString().replace(/\D/g, '').slice(0, 12);
+          let formattedAadhar = '';
+          if (cleanAadhar.length === 12) {
+            formattedAadhar = `${cleanAadhar.slice(0, 4)} ${cleanAadhar.slice(4, 8)} ${cleanAadhar.slice(8, 12)}`;
+          }
+
+          const wardMatch = wards.find((w) =>
+            (row['Ward Name'] || '').toString().toLowerCase().includes(w.ward_name.toLowerCase())
+          );
+          if (!wardMatch) {
+            return { success: false, reason: 'Ward not found' };
+          }
+
+          const locality = row['Locality'] || '';
+          if (!wardMatch.localities.includes(locality)) {
+            return { success: false, reason: 'Invalid locality' };
+          }
+
+          const street = row['Street'] || '';
+          const postalCode = row['Postal Code'] || '';
+          const addressDetail = wardMatch.address_details.find(
+            (d) => d.locality === locality && d.street === street && d.postal_code === postalCode
+          );
+          if (!addressDetail) {
+            return { success: false, reason: 'Invalid address details' };
+          }
+
+          const supportMap = {
+            'Neutral': 'neutral',
+            'Supporter': 'supporter',
+            'Opposition': 'opposition',
+          };
+          const support = supportMap[(row['Support'] || 'Neutral').toString()] || 'neutral';
+
+          if (!row['Name'] || !row["Father's Name"] || !cleanPhone || cleanPhone.length !== 10 || !cleanVoterId || cleanVoterId.length !== 10 || !cleanAadhar || cleanAadhar.length !== 12) {
+            return { success: false, reason: 'Missing or invalid required fields' };
+          }
+
+          let dob = '';
+          if (row['DOB']) {
+            const date = new Date(row['DOB']);
+            if (!isNaN(date.getTime())) {
+              dob = date.toISOString().split('T')[0];
+            }
+          }
+          if (!dob) {
+            return { success: false, reason: 'Invalid DOB' };
+          }
+
+          const voterData = {
+            name: row['Name'].toString().trim(),
+            fathers_name: row["Father's Name"].toString().trim(),
+            dob,
+            phone: cleanPhone,
+            voter_id: cleanVoterId,
+            aadhar_number: formattedAadhar,
+            support,
+            ward: wardMatch._id,
+            address: {
+              house_no: (row['House No'] || '').toString().trim(),
+              locality,
+              street,
+              city: (row['City'] || wardMatch.district).toString().trim(),
+              postal_code: postalCode,
+            },
+          };
+
+          const submitData = new FormData();
+          Object.keys(voterData).forEach((key) => {
+            if (key === 'address') {
+              Object.keys(voterData.address).forEach((addrKey) => {
+                submitData.append(`address[${addrKey}]`, voterData.address[addrKey]);
+              });
+            } else {
+              submitData.append(key, voterData[key]);
+            }
+          });
+
+          const config = {
+            headers: { 'Content-Type': 'multipart/form-data' },
+            withCredentials: true,
+          };
+
+          await axiosInstance.post('/voters', submitData, config);
+          return { success: true };
+
+        } catch (err) {
+          console.error('Import error for row:', row, err);
+          return { success: false, reason: err.response?.data?.message || 'Unknown error' };
+        }
+      });
+
+      const results = await Promise.all(promises);
+      successCount = results.filter((r) => r.success).length;
+      errorCount = results.length - successCount;
+
+      showToast(
+        successCount > 0 ? 'success' : 'error',
+        `Import completed: ${successCount} successful, ${errorCount} failed`
+      );
+
+      fetchVoters();
+    } catch (error) {
+      console.error('Import error:', error);
+      showToast('error', 'Failed to process Excel file');
+    } finally {
+      setImportLoading(false);
+      setImportFile(null);
+      const fileInput = document.querySelector('input[type="file"]');
+      if (fileInput) fileInput.value = '';
+      setImportOpen(false);
+    }
   };
 
   const resetForm = () => {
@@ -357,6 +574,7 @@ const Voters = () => {
       showToast('success', 'Voter deleted successfully');
       fetchVoters();
     } catch (error) {
+      console.log(error);
       showToast('error', 'Delete failed');
     }
   };
@@ -383,6 +601,50 @@ const Voters = () => {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
         <h1 className="text-2xl font-bold">Voter Registry</h1>
         <div className="flex flex-col sm:flex-row gap-2">
+          <Button variant="outline" onClick={downloadTemplate}>
+            <Download className="w-4 h-4 mr-2" />
+            Download Template
+          </Button>
+
+          <Dialog open={importOpen} onOpenChange={(o) => { setImportOpen(o); if (!o) setImportFile(null); }}>
+            <DialogTrigger asChild>
+              <Button variant="outline">
+                <Upload className="w-4 h-4 mr-2" />
+                Import Excel
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Import Voters from Excel</DialogTitle>
+                <DialogDescription>
+                  Upload an Excel file (.xlsx or .xls) with voter data. Use the downloaded template for correct format.
+                  <br />
+                  <span className="text-xs text-muted-foreground block mt-1">
+                    Note: Images are not imported; upload them manually after import.
+                  </span>
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4">
+                <Input
+                  type="file"
+                  accept=".xlsx,.xls"
+                  onChange={handleFileSelect}
+                  disabled={importLoading}
+                />
+              </div>
+              <DialogFooter>
+                <Button
+                  type="button"
+                  onClick={handleImport}
+                  disabled={!importFile || importLoading}
+                  className="ml-auto"
+                >
+                  {importLoading ? 'Importing...' : 'Import Voters'}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
           <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) resetForm(); }}>
             <DialogTrigger asChild>
               <Button>
@@ -618,70 +880,66 @@ const Voters = () => {
         </Card>
       </div>
 
-     <div className="flex flex-col lg:flex-row gap-4 mb-4 flex-wrap">
-  {/* --- Search Box --- */}
-  <div className="w-full lg:w-auto flex-1 min-w-[200px] flex flex-col gap-1.5">
-    <Label>Search</Label>
-    <Input
-      placeholder="Search by Name, Father Name, DOB, Phone, Voter ID, Support, Ward, Address, Aadhar..."
-      value={searchTerm}
-      onChange={(e) => setSearchTerm(e.target.value)}
-      className="w-full"
-    />
-  </div>
+      <div className="flex flex-col lg:flex-row gap-4 mb-4 flex-wrap">
+        <div className="w-full lg:w-auto flex-1 min-w-[200px] flex flex-col gap-1.5">
+          <Label>Search</Label>
+          <Input
+            placeholder="Search by Name, Father Name, DOB, Phone, Voter ID, Support, Ward, Address, Aadhar..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full"
+          />
+        </div>
 
-  {/* --- Ward Filter --- */}
-  <div className="w-full lg:w-auto flex-1 min-w-[200px] flex flex-col gap-1.5">
-    <Label>Ward Filter</Label>
-    <Select value={filters.ward} onValueChange={(value) => handleFilterChange('ward', value)}>
-      <SelectTrigger className="w-full">
-        <SelectValue placeholder="All Wards" />
-      </SelectTrigger>
-      <SelectContent>
-        <SelectItem value="all">All Wards</SelectItem>
-        {wards.map((ward) => (
-          <SelectItem key={ward._id} value={ward._id}>
-            {ward.ward_name} ({ward.ward_number})
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
-  </div>
+        <div className="w-full lg:w-auto flex-1 min-w-[200px] flex flex-col gap-1.5">
+          <Label>Ward Filter</Label>
+          <Select value={filters.ward} onValueChange={(value) => handleFilterChange('ward', value)}>
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="All Wards" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Wards</SelectItem>
+              {wards.map((ward) => (
+                <SelectItem key={ward._id} value={ward._id}>
+                  {ward.ward_name} ({ward.ward_number})
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
 
-  {/* --- Support Filter --- */}
-  <div className="w-full lg:w-auto flex-1 min-w-[200px] flex flex-col gap-1.5">
-    <Label>Support Filter</Label>
-    <Select value={filters.support} onValueChange={(value) => handleFilterChange('support', value)}>
-      <SelectTrigger className="w-full">
-        <SelectValue placeholder="All Supports" />
-      </SelectTrigger>
-      <SelectContent>
-        <SelectItem value="all">All Supports</SelectItem>
-        <SelectItem value="neutral">Neutral</SelectItem>
-        <SelectItem value="supporter">Supporter</SelectItem>
-        <SelectItem value="opposition">Opposition</SelectItem>
-      </SelectContent>
-    </Select>
-  </div>
+        <div className="w-full lg:w-auto flex-1 min-w-[200px] flex flex-col gap-1.5">
+          <Label>Support Filter</Label>
+          <Select value={filters.support} onValueChange={(value) => handleFilterChange('support', value)}>
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="All Supports" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Supports</SelectItem>
+              <SelectItem value="neutral">Neutral</SelectItem>
+              <SelectItem value="supporter">Supporter</SelectItem>
+              <SelectItem value="opposition">Opposition</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
 
-  {/* --- Created By Filter --- */}
-  <div className="w-full lg:w-auto flex-1 min-w-[200px] flex flex-col gap-1.5">
-    <Label>Created By Filter</Label>
-    <Select value={filters.created_by} onValueChange={(value) => handleFilterChange('created_by', value)}>
-      <SelectTrigger className="w-full">
-        <SelectValue placeholder="All Creators" />
-      </SelectTrigger>
-      <SelectContent>
-        <SelectItem value="all">All Creators</SelectItem>
-        {uniqueCreators.map((creator) => (
-          <SelectItem key={creator._id} value={creator._id}>
-            {creator.name}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
-  </div>
-</div>
+        <div className="w-full lg:w-auto flex-1 min-w-[200px] flex flex-col gap-1.5">
+          <Label>Created By Filter</Label>
+          <Select value={filters.created_by} onValueChange={(value) => handleFilterChange('created_by', value)}>
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="All Creators" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Creators</SelectItem>
+              {uniqueCreators.map((creator) => (
+                <SelectItem key={creator._id} value={creator._id}>
+                  {creator.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
 
       <Dialog open={viewImageOpen} onOpenChange={setViewImageOpen}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto sm:max-w-6xl">
