@@ -73,72 +73,48 @@ const createVoter = async (req, res) => {
       address: { house_no, locality, street, city, postal_code },
     } = req.body;
 
-    // Handle file uploads
     const voterImageFile = req.files?.voter_image?.[0];
     const aadharImageFile = req.files?.aadhar_image?.[0];
 
-    if (!voterImageFile || !aadharImageFile) {
-      return res.status(400).json({ success: false, message: "Voter image and Aadhar image are required" });
-    }
-
-    // Validate ward exists
+    // Validate ward
     const ward = await Ward.findById(wardId);
-    if (!ward) {
-      return res.status(404).json({ success: false, message: "Ward not found" });
-    }
+    if (!ward) return res.status(404).json({ success: false, message: "Ward not found" });
 
-    // Role-based access check
-    const user = await User.findById(req.user.id).populate("role_id", "name");
-    if (!user) {
-      return res.status(401).json({ success: false, message: "User not found" });
-    }
-    const roleName = user.role_id.name;
-    const accessibleCandidateId = await getAccessibleCandidateId(req.user.id, user.email, roleName);
-    if (accessibleCandidateId === null && roleName !== "admin") {
-      return res.status(403).json({ success: false, message: "Access denied: Invalid role or profile not found" });
-    }
-
-    // Check ward belongs to accessible candidate
-    if (accessibleCandidateId && String(ward.candidate_id) !== String(accessibleCandidateId)) {
-      return res.status(403).json({ success: false, message: "Access denied: Can only add voters to your candidate's wards" });
-    }
-
-    // Validate address locality matches ward's localities
+    // Validate locality
     if (!ward.localities.includes(locality)) {
-      return res.status(400).json({ success: false, message: "Locality must match ward's localities" });
+      return res.status(400).json({ success: false, message: "Invalid locality" });
     }
 
-    // Validate address street/postal_code matches ward's address_details for the locality
-    const matchingAddressDetail = ward.address_details.find(
-      (detail) => detail.locality === locality && detail.street === street && detail.postal_code === postal_code
+    const addressDetail = ward.address_details.find(
+      (d) => d.locality === locality && d.street === street && d.postal_code === postal_code
     );
-    if (!matchingAddressDetail) {
-      return res.status(400).json({ success: false, message: "Address details must match ward's address details for the selected locality" });
+    if (!addressDetail) {
+      return res.status(400).json({ success: false, message: "Invalid address details" });
     }
 
-    // Create voter folder: Uploads/voters/{sanitized_voter_name}/images
+    // OPTIONAL images
+    let voterImagePath = null;
+    let aadharImagePath = null;
     const sanitizedVoterName = name.replace(/[^a-zA-Z0-9]/g, "_").toLowerCase();
     const entityType = `voters/${sanitizedVoterName}`;
-    const imagesDir = path.join(__dirname, "../Uploads", entityType, "images");
-    fs.mkdirSync(imagesDir, { recursive: true });
 
-    // Process voter image
-    const voterImageFilename = `voter_${Date.now()}.webp`;
-    const voterImagePath = await processFile(
-      voterImageFile.buffer,
-      voterImageFile.mimetype,
-      entityType,
-      voterImageFilename
-    );
+    if (voterImageFile) {
+      voterImagePath = await processFile(
+        voterImageFile.buffer,
+        voterImageFile.mimetype,
+        entityType,
+        `voter_${Date.now()}.webp`
+      );
+    }
 
-    // Process aadhar image
-    const aadharImageFilename = `aadhar_${Date.now()}.webp`;
-    const aadharImagePath = await processFile(
-      aadharImageFile.buffer,
-      aadharImageFile.mimetype,
-      entityType,
-      aadharImageFilename
-    );
+    if (aadharImageFile) {
+      aadharImagePath = await processFile(
+        aadharImageFile.buffer,
+        aadharImageFile.mimetype,
+        entityType,
+        `aadhar_${Date.now()}.webp`
+      );
+    }
 
     const newVoter = await Voter.create({
       name,
@@ -146,25 +122,26 @@ const createVoter = async (req, res) => {
       dob: new Date(dob),
       phone,
       voter_id: voter_id.toUpperCase(),
-      voter_image: voterImagePath,
+      voter_image: voterImagePath || null,
       aadhar_number,
-      aadhar_image: aadharImagePath,
-      support: support || 'neutral', // Default to neutral
+      aadhar_image: aadharImagePath || null,
+      support: support || "neutral",
       ward: wardId,
       address: { house_no, locality, street, city, postal_code },
       created_by: req.user.id,
     });
 
-    // Populate ward and created_by
     await newVoter.populate("ward", "ward_name ward_number");
     await newVoter.populate("created_by", "name email");
 
     res.status(201).json({ success: true, message: "Voter created successfully", voter: newVoter });
+
   } catch (error) {
     console.error("Create Voter Error:", error);
     res.status(500).json({ success: false, message: "Error creating voter", error: error.message });
   }
 };
+
 
 // ✅ Get all voters (enhanced role-based filtering, return empty for unauthorized reads, added created_by filter)
 const getVoters = async (req, res) => {

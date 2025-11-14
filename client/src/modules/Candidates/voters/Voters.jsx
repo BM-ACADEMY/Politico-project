@@ -142,7 +142,6 @@ const Voters = () => {
       setVoters(response.data.voters);
       setCounts(response.data.stats);
 
-      // Compute unique creators for filter
       const creators = response.data.voters.reduce((acc, voter) => {
         if (voter.created_by?._id && !acc.some(c => c._id === voter.created_by._id)) {
           acc.push(voter.created_by);
@@ -156,9 +155,9 @@ const Voters = () => {
     }
   };
 
-  // Download template Excel
+  // Updated downloadTemplate using the second Excel file's structure
   const downloadTemplate = () => {
-    // Sample data for template
+    // Use the data from voter_import_template (2).xlsx
     const templateData = [
       {
         'Name': 'John Doe',
@@ -190,14 +189,13 @@ const Voters = () => {
         'City': 'puducherry',
         'Postal Code': '605010'
       }
-      // Add more sample rows if needed
     ];
 
-    // Create worksheet
+    // Create worksheet for data
     const ws = XLSX.utils.json_to_sheet(templateData);
 
-    // Add headers note
-    const headerNote = [
+    // Instructions sheet (same as in voter_import_template (2).xlsx)
+    const instructions = [
       ['Template for Voter Import'],
       ['Instructions:'],
       ['- Fill in the data starting from row 3.'],
@@ -208,16 +206,18 @@ const Voters = () => {
       ['- Support: Neutral, Supporter, or Opposition.'],
       ['- Ward Name: Exact match with ward names (e.g., reddiyarpalayam).'],
       ['- Ensure Locality and Street match the ward\'s address details.'],
-      ['', ''], // Empty row
+      [''], // empty row
       ['Data starts here:']
     ];
-    const headerWs = XLSX.utils.aoa_to_sheet(headerNote);
-    const mergedWs = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(mergedWs, headerWs, 'Instructions');
-    XLSX.utils.book_append_sheet(mergedWs, ws, 'Voters');
+    const instructionsWs = XLSX.utils.aoa_to_sheet(instructions);
+
+    // Create workbook and append sheets
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, instructionsWs, 'Instructions');
+    XLSX.utils.book_append_sheet(wb, ws, 'Voters');
 
     // Write file
-    XLSX.writeFile(mergedWs, 'voter_import_template.xlsx');
+    XLSX.writeFile(wb, 'voter_import_template.xlsx');
     showToast('success', 'Template downloaded successfully');
   };
 
@@ -301,7 +301,6 @@ const Voters = () => {
     setFormData((prev) => ({ ...prev, [key]: e.target.files?.[0] || null }));
   };
 
-  // Import handlers
   const handleFileSelect = (e) => {
     setImportFile(e.target.files?.[0] || null);
   };
@@ -328,13 +327,10 @@ const Voters = () => {
         return;
       }
 
-      // Skip header rows if they exist (e.g., instructions)
       const dataRows = jsonData.filter(row => row['Name'] && row['Name'].toString().trim() !== '');
 
-      // Process each row concurrently with limit to avoid overwhelming the server
       const promises = dataRows.map(async (row) => {
         try {
-          // Map Excel columns to voter data (adjust column names as per your Excel format)
           const cleanPhone = (row['Phone'] || '').toString().replace(/\D/g, '').slice(0, 10);
           const cleanVoterId = (row['Voter ID'] || '').toString().toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 10);
           const cleanAadhar = (row['Aadhar Number'] || '').toString().replace(/\D/g, '').slice(0, 12);
@@ -343,34 +339,27 @@ const Voters = () => {
             formattedAadhar = `${cleanAadhar.slice(0, 4)} ${cleanAadhar.slice(4, 8)} ${cleanAadhar.slice(8, 12)}`;
           }
 
-          // Find ward by name (case-insensitive partial match)
           const wardMatch = wards.find((w) =>
             (row['Ward Name'] || '').toString().toLowerCase().includes(w.ward_name.toLowerCase())
           );
           if (!wardMatch) {
-            console.warn(`Ward not found for: ${row['Ward Name']}`);
             return { success: false, reason: 'Ward not found' };
           }
 
-          // Validate locality
           const locality = row['Locality'] || '';
           if (!wardMatch.localities.includes(locality)) {
-            console.warn(`Invalid locality for ward ${wardMatch.ward_name}: ${locality}`);
             return { success: false, reason: 'Invalid locality' };
           }
 
-          // Validate address details
           const street = row['Street'] || '';
           const postalCode = row['Postal Code'] || '';
           const addressDetail = wardMatch.address_details.find(
             (d) => d.locality === locality && d.street === street && d.postal_code === postalCode
           );
           if (!addressDetail) {
-            console.warn(`Invalid address details for locality ${locality}`);
             return { success: false, reason: 'Invalid address details' };
           }
 
-          // Map support (default to 'neutral')
           const supportMap = {
             'Neutral': 'neutral',
             'Supporter': 'supporter',
@@ -378,12 +367,10 @@ const Voters = () => {
           };
           const support = supportMap[(row['Support'] || 'Neutral').toString()] || 'neutral';
 
-          // Validate required fields
           if (!row['Name'] || !row["Father's Name"] || !cleanPhone || cleanPhone.length !== 10 || !cleanVoterId || cleanVoterId.length !== 10 || !cleanAadhar || cleanAadhar.length !== 12) {
             return { success: false, reason: 'Missing or invalid required fields' };
           }
 
-          // Assume DOB is in YYYY-MM-DD or parseable format
           let dob = '';
           if (row['DOB']) {
             const date = new Date(row['DOB']);
@@ -412,10 +399,6 @@ const Voters = () => {
               postal_code: postalCode,
             },
           };
-
-          // Note: Images are not imported from Excel; they are required in backend. 
-          // To handle bulk import without images, you may need to update backend to make images optional for imports.
-          // For now, this will fail on backend if images are required. Consider adding a flag or separate endpoint.
 
           const submitData = new FormData();
           Object.keys(voterData).forEach((key) => {
@@ -451,7 +434,6 @@ const Voters = () => {
         `Import completed: ${successCount} successful, ${errorCount} failed`
       );
 
-      // Refresh voters after import
       fetchVoters();
     } catch (error) {
       console.error('Import error:', error);
@@ -459,7 +441,6 @@ const Voters = () => {
     } finally {
       setImportLoading(false);
       setImportFile(null);
-      // Reset file input
       const fileInput = document.querySelector('input[type="file"]');
       if (fileInput) fileInput.value = '';
       setImportOpen(false);
@@ -620,13 +601,11 @@ const Voters = () => {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
         <h1 className="text-2xl font-bold">Voter Registry</h1>
         <div className="flex flex-col sm:flex-row gap-2">
-          {/* Download Template Button */}
           <Button variant="outline" onClick={downloadTemplate}>
             <Download className="w-4 h-4 mr-2" />
             Download Template
           </Button>
 
-          {/* Import Dialog */}
           <Dialog open={importOpen} onOpenChange={(o) => { setImportOpen(o); if (!o) setImportFile(null); }}>
             <DialogTrigger asChild>
               <Button variant="outline">
@@ -641,7 +620,7 @@ const Voters = () => {
                   Upload an Excel file (.xlsx or .xls) with voter data. Use the downloaded template for correct format.
                   <br />
                   <span className="text-xs text-muted-foreground block mt-1">
-                    Note: Images are not imported; upload them manually after import. Ensure backend allows creation without images for bulk imports.
+                    Note: Images are not imported; upload them manually after import.
                   </span>
                 </DialogDescription>
               </DialogHeader>
@@ -666,7 +645,6 @@ const Voters = () => {
             </DialogContent>
           </Dialog>
 
-          {/* Add Voter Dialog */}
           <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) resetForm(); }}>
             <DialogTrigger asChild>
               <Button>
@@ -902,70 +880,66 @@ const Voters = () => {
         </Card>
       </div>
 
-     <div className="flex flex-col lg:flex-row gap-4 mb-4 flex-wrap">
-  {/* --- Search Box --- */}
-  <div className="w-full lg:w-auto flex-1 min-w-[200px] flex flex-col gap-1.5">
-    <Label>Search</Label>
-    <Input
-      placeholder="Search by Name, Father Name, DOB, Phone, Voter ID, Support, Ward, Address, Aadhar..."
-      value={searchTerm}
-      onChange={(e) => setSearchTerm(e.target.value)}
-      className="w-full"
-    />
-  </div>
+      <div className="flex flex-col lg:flex-row gap-4 mb-4 flex-wrap">
+        <div className="w-full lg:w-auto flex-1 min-w-[200px] flex flex-col gap-1.5">
+          <Label>Search</Label>
+          <Input
+            placeholder="Search by Name, Father Name, DOB, Phone, Voter ID, Support, Ward, Address, Aadhar..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full"
+          />
+        </div>
 
-  {/* --- Ward Filter --- */}
-  <div className="w-full lg:w-auto flex-1 min-w-[200px] flex flex-col gap-1.5">
-    <Label>Ward Filter</Label>
-    <Select value={filters.ward} onValueChange={(value) => handleFilterChange('ward', value)}>
-      <SelectTrigger className="w-full">
-        <SelectValue placeholder="All Wards" />
-      </SelectTrigger>
-      <SelectContent>
-        <SelectItem value="all">All Wards</SelectItem>
-        {wards.map((ward) => (
-          <SelectItem key={ward._id} value={ward._id}>
-            {ward.ward_name} ({ward.ward_number})
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
-  </div>
+        <div className="w-full lg:w-auto flex-1 min-w-[200px] flex flex-col gap-1.5">
+          <Label>Ward Filter</Label>
+          <Select value={filters.ward} onValueChange={(value) => handleFilterChange('ward', value)}>
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="All Wards" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Wards</SelectItem>
+              {wards.map((ward) => (
+                <SelectItem key={ward._id} value={ward._id}>
+                  {ward.ward_name} ({ward.ward_number})
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
 
-  {/* --- Support Filter --- */}
-  <div className="w-full lg:w-auto flex-1 min-w-[200px] flex flex-col gap-1.5">
-    <Label>Support Filter</Label>
-    <Select value={filters.support} onValueChange={(value) => handleFilterChange('support', value)}>
-      <SelectTrigger className="w-full">
-        <SelectValue placeholder="All Supports" />
-      </SelectTrigger>
-      <SelectContent>
-        <SelectItem value="all">All Supports</SelectItem>
-        <SelectItem value="neutral">Neutral</SelectItem>
-        <SelectItem value="supporter">Supporter</SelectItem>
-        <SelectItem value="opposition">Opposition</SelectItem>
-      </SelectContent>
-    </Select>
-  </div>
+        <div className="w-full lg:w-auto flex-1 min-w-[200px] flex flex-col gap-1.5">
+          <Label>Support Filter</Label>
+          <Select value={filters.support} onValueChange={(value) => handleFilterChange('support', value)}>
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="All Supports" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Supports</SelectItem>
+              <SelectItem value="neutral">Neutral</SelectItem>
+              <SelectItem value="supporter">Supporter</SelectItem>
+              <SelectItem value="opposition">Opposition</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
 
-  {/* --- Created By Filter --- */}
-  <div className="w-full lg:w-auto flex-1 min-w-[200px] flex flex-col gap-1.5">
-    <Label>Created By Filter</Label>
-    <Select value={filters.created_by} onValueChange={(value) => handleFilterChange('created_by', value)}>
-      <SelectTrigger className="w-full">
-        <SelectValue placeholder="All Creators" />
-      </SelectTrigger>
-      <SelectContent>
-        <SelectItem value="all">All Creators</SelectItem>
-        {uniqueCreators.map((creator) => (
-          <SelectItem key={creator._id} value={creator._id}>
-            {creator.name}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
-  </div>
-</div>
+        <div className="w-full lg:w-auto flex-1 min-w-[200px] flex flex-col gap-1.5">
+          <Label>Created By Filter</Label>
+          <Select value={filters.created_by} onValueChange={(value) => handleFilterChange('created_by', value)}>
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="All Creators" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Creators</SelectItem>
+              {uniqueCreators.map((creator) => (
+                <SelectItem key={creator._id} value={creator._id}>
+                  {creator.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
 
       <Dialog open={viewImageOpen} onOpenChange={setViewImageOpen}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto sm:max-w-6xl">
