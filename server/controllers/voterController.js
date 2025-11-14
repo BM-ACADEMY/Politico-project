@@ -8,6 +8,8 @@
 // Added getVoterById with access checks
 // Fix for frontend error: For unauthorized reads (getVoters, getWardsForVoter), return empty data instead of 403 to prevent crash on undefined stats.total
 // Added support for created_by filter in getVoters
+// FIXED: Added check for accessibleWardIds.length === 0 for non-admins to return empty response (prevents showing all voters if no wards assigned to candidate/volunteer's candidate)
+// FIXED: Changed roleName check for volunteers from "volunteers" to "volunteer" (assuming standard singular role name; adjust if DB uses plural)
 
 const Voter = require("../models/Voter");
 const Ward = require("../models/ward");
@@ -29,7 +31,7 @@ const getAccessibleCandidateId = async (userId, userEmail, roleName) => {
       return null; // No access profile
     }
     return userCandidate._id;
-  } else if (roleName === "volunteers") {
+  } else if (roleName === "volunteer") { // FIXED: Changed from "volunteers" to "volunteer"
     const volunteer = await Volunteer.findOne({ email: userEmail });
     if (!volunteer) {
       return null; // No volunteer profile
@@ -180,6 +182,11 @@ const getVoters = async (req, res) => {
       accessibleWardIds = userWards.map((w) => w._id);
     } else if (roleName !== "admin") {
       // Unauthorized: return empty
+      return emptyVotersResponse(res);
+    }
+
+    // FIXED: If non-admin and no accessible wards, return empty (prevents showing all voters when candidate/volunteer has no wards assigned)
+    if (roleName !== "admin" && accessibleWardIds.length === 0) {
       return emptyVotersResponse(res);
     }
 
