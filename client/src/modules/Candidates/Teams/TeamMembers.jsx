@@ -111,6 +111,9 @@ const TeamMembers = ({ refreshKey }) => { // ✅ Accept refreshKey as prop
           <h3 className="font-semibold text-sm">{vol.name}</h3>
 
         </div>
+           <p className="text-xs text-muted-foreground">
+          {vol.email}
+        </p>
 
         {/* Ward / Localities */}
         <p className="text-xs text-muted-foreground">

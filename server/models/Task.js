@@ -1,4 +1,4 @@
-// models/Task.js (Updated with status field)
+// Updated models/Task.js - Added 'event' field to reference Event
 const mongoose = require("mongoose");
 
 const taskSchema = new mongoose.Schema(
@@ -11,6 +11,11 @@ const taskSchema = new mongoose.Schema(
     description: {
       type: String,
       required: true,
+    },
+    event: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Event", // References the Event model
+      required: true, // Made required as per frontend validation
     },
     assign_to: {
       type: mongoose.Schema.Types.ObjectId,

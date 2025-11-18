@@ -15,7 +15,6 @@ const app = express();
 // ======== CORS Setup ========
 const allowedOrigins = [
   process.env.CLIENT_URL,
-  "http://localhost:5174",  // Ensure both ports are here (added 5173 for completeness)
   "https://admin.namathumakkalkazhagam.com",
   "https://www.admin.namathumakkalkazhagam.com",
   "https://namathumakkalkazhagam.com",

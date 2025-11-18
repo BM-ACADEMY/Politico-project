@@ -23,6 +23,7 @@ const Teams = () => {
   const [refreshKey, setRefreshKey] = useState(0);
   const [wards, setWards] = useState([]);
   const [volunteers, setVolunteers] = useState([]); // For task assignment
+  const [events, setEvents] = useState([]); // New state for events
   const [selectedWard, setSelectedWard] = useState(null);
   const [formData, setFormData] = useState({
     name: '',
@@ -36,6 +37,7 @@ const Teams = () => {
     task_title: '',
     description: '',
     assign_to: '',
+    event: '', // New field for event
   });
 
   // Fetch wards when volunteer modal opens
@@ -65,6 +67,23 @@ const Teams = () => {
         }
       };
       fetchVolunteers();
+    }
+  }, [assignTaskOpen, user]);
+
+  // New: Fetch events (scheduled and ongoing only) when task modal opens (role-based)
+  useEffect(() => {
+    if (assignTaskOpen && user) {
+      const fetchEvents = async () => {
+        try {
+          // Fetch only scheduled and ongoing events, role-based via backend
+          const res = await axiosInstance.get('/events?status=scheduled,ongoing');
+          setEvents(res.data.data || []); // Fixed: Use res.data.data for the array
+        } catch (err) {
+          showToast('error', 'Failed to load events');
+          setEvents([]); // Ensure array on error
+        }
+      };
+      fetchEvents();
     }
   }, [assignTaskOpen, user]);
 
@@ -123,8 +142,8 @@ const Teams = () => {
   const handleTaskSubmit = async (e) => {
     e.preventDefault();
 
-    if (!taskFormData.task_title || !taskFormData.description || !taskFormData.assign_to) {
-      showToast('error', 'All task fields are required');
+    if (!taskFormData.task_title || !taskFormData.description || !taskFormData.assign_to || !taskFormData.event) {
+      showToast('error', 'All task fields are required, including event');
       return;
     }
 
@@ -157,6 +176,7 @@ const Teams = () => {
       task_title: '',
       description: '',
       assign_to: '',
+      event: '', // Reset event
     });
   };
 
@@ -329,6 +349,23 @@ const Teams = () => {
               />
             </div>
 
+            {/* New: Event Selection */}
+            <div className="space-y-1">
+              <Label>Related Event (Scheduled/Ongoing)</Label>
+              <Select onValueChange={(value) => setTaskFormData({ ...taskFormData, event: value })} value={taskFormData.event}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select an event" />
+                </SelectTrigger>
+                <SelectContent>
+                  {events.map((evt) => (
+                    <SelectItem key={evt._id} value={evt._id}>
+                      {evt.eventTitle} - {new Date(evt.date).toLocaleDateString()} {evt.time} ({evt.status})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
             <div className="space-y-1">
               <Label>Assign To (Volunteer)</Label>
               <Select onValueChange={(value) => setTaskFormData({ ...taskFormData, assign_to: value })} value={taskFormData.assign_to}>
@@ -349,7 +386,7 @@ const Teams = () => {
               <Button type="button" variant="outline" onClick={() => setAssignTaskOpen(false)}>
                 Cancel
               </Button>
-              <Button type="submit" disabled={!taskFormData.assign_to}>
+              <Button type="submit" disabled={!taskFormData.assign_to || !taskFormData.event}>
                 Assign Task
               </Button>
             </div>
