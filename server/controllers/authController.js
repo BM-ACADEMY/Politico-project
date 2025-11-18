@@ -1,9 +1,11 @@
+// controllers/authController.js (Updated: OTP stored as plain text, no hashing)
 const User = require("../models/usermodel");
 const Role = require("../models/role");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
+const { sendOtpEmail } = require("../utils/Email"); // Updated import
 
-// ✅ Register
+// ✅ Register (unchanged)
 exports.register = async (req, res) => {
   try {
     const { name, email, phone, password, role_id } = req.body;
@@ -35,8 +37,7 @@ exports.register = async (req, res) => {
   }
 };
 
-// ✅ Login
-// controllers/authController.js
+// ✅ Login (unchanged)
 exports.login = async (req, res) => {
   try {
     const { email, phone, password } = req.body;
@@ -114,13 +115,7 @@ exports.getUserInfo = async (req, res) => {
   }
 };
 
-// ✅ Logout
-// exports.logout = async (req, res) => {
-//   res.cookie("token", "", { maxAge: 0, httpOnly: true });
-//   res.status(200).json({ message: "Logged out successfully" });
-// };
-
-
+// ✅ Logout (unchanged)
 exports.logout = async (req, res) => {
   try {
     res.clearCookie("token", {
@@ -135,5 +130,117 @@ exports.logout = async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ message: "Logout failed" });
+  }
+};
+
+// ✅ Updated: Forgot Password - Send OTP (plain text storage)
+exports.forgotPassword = async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    // Validate input
+    if (!email) {
+      return res.status(400).json({ message: "Email is required" });
+    }
+
+    // Find user by email
+    const user = await User.findOne({ email });
+
+    if (!user) {
+      return res.status(400).json({ message: "User not found" });
+    }
+
+    // Generate 6-digit OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+
+    // Save OTP to user (plain text)
+    user.otp = otp;
+    user.otpExpiry = Date.now() + 10 * 60 * 1000; // 10 minutes
+    await user.save();
+
+    // Send OTP email
+    await sendOtpEmail({
+      email: user.email,
+      name: user.name,
+      otp,
+    });
+
+    res.status(200).json({ 
+      message: "OTP sent to your email" 
+    });
+  } catch (error) {
+    console.error("Forgot password error:", error);
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
+// ✅ New: Verify OTP (plain text comparison)
+exports.verifyOtp = async (req, res) => {
+  try {
+    const { email, otp } = req.body;
+
+    // Validate input
+    if (!email || !otp) {
+      return res.status(400).json({ message: "Email and OTP are required" });
+    }
+
+    // Find user by email
+    const user = await User.findOne({ email });
+
+    if (!user || !user.otp || !user.otpExpiry) {
+      return res.status(400).json({ message: "Invalid OTP" });
+    }
+
+    // Check expiry
+    if (user.otpExpiry < Date.now()) {
+      return res.status(400).json({ message: "OTP expired" });
+    }
+
+    // Verify OTP (plain text comparison)
+    if (user.otp !== otp) {
+      return res.status(400).json({ message: "Invalid OTP" });
+    }
+
+    // Clear OTP
+    user.otp = null;
+    user.otpExpiry = null;
+    await user.save();
+
+    res.status(200).json({ 
+      message: "OTP verified successfully" 
+    });
+  } catch (error) {
+    console.error("Verify OTP error:", error);
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
+// ✅ New: Reset Password after OTP (unchanged)
+exports.resetPassword = async (req, res) => {
+  try {
+    const { email, newPassword } = req.body;
+
+    // Validate input
+    if (!email || !newPassword) {
+      return res.status(400).json({ message: "Email and new password are required" });
+    }
+
+    // Find user by email
+    const user = await User.findOne({ email });
+
+    if (!user) {
+      return res.status(400).json({ message: "User not found" });
+    }
+
+    // Set new password (pre-save hook will hash it)
+    user.password = newPassword;
+    await user.save();
+
+    res.status(200).json({ 
+      message: "Password reset successfully" 
+    });
+  } catch (error) {
+    console.error("Reset password error:", error);
+    res.status(500).json({ message: "Server error", error: error.message });
   }
 };
