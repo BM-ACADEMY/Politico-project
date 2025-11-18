@@ -1,4 +1,4 @@
-// Updated eventModel.js - Added missing fields: startTime and actualAttendance
+// Updated eventModel.js - Added 'published' field
 const mongoose = require("mongoose");
 
 const eventSchema = new mongoose.Schema(
@@ -48,6 +48,10 @@ const eventSchema = new mongoose.Schema(
       type: String,
       enum: ["scheduled", "ongoing", "completed"],
       default: "scheduled",
+    },
+    published: {
+      type: Boolean,
+      default: false,
     },
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,

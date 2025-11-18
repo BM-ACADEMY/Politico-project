@@ -1,22 +1,42 @@
-// controllers/taskController.js (Fixed populate chaining, added status filter, role-based filtering, nested populate)
+// Updated controllers/taskController.js - Added duplicate check in createTask
 const Task = require("../models/Task");
 const Volunteer = require("../models/Volunteer");
 const User = require("../models/usermodel");
 const Role = require("../models/role");
+const Event = require("../models/Eventmodel"); // Added import for Event
 
 const createTask = async (req, res) => {
   try {
-    const { task_title, description, assign_to } = req.body;
+    const { task_title, description, assign_to, event } = req.body; // Added event
 
     // Validate required fields
-    if (!task_title || !description || !assign_to) {
-      return res.status(400).json({ message: "Task title, description, and assignee are required." });
+    if (!task_title || !description || !assign_to || !event) {
+      return res.status(400).json({ message: "Task title, description, assignee, and event are required." });
     }
 
     // Validate assignee (Volunteer exists)
     const volunteer = await Volunteer.findById(assign_to).populate("ward", "ward_name ward_number");
     if (!volunteer) {
       return res.status(404).json({ message: "Volunteer not found." });
+    }
+
+    // Validate event (Event exists and is scheduled/ongoing)
+    const validEvent = await Event.findById(event);
+    if (!validEvent || !['scheduled', 'ongoing'].includes(validEvent.status)) {
+      return res.status(400).json({ message: "Valid scheduled or ongoing event is required." });
+    }
+
+    // Check for duplicate task: same title, assigned to same volunteer, for same event, and pending status
+    const existingTask = await Task.findOne({
+      task_title,
+      assign_to,
+      event,
+      status: 'pending'
+    });
+    if (existingTask) {
+      return res.status(409).json({ 
+        message: "A pending task with this title is already assigned to this volunteer for the selected event." 
+      });
     }
 
     // Role-based access: Only admins or creators can assign tasks to their volunteers
@@ -30,18 +50,23 @@ const createTask = async (req, res) => {
     const newTask = await Task.create({
       task_title,
       description,
+      event, // Added event
       assign_to,
       created_by: req.user.id,
     });
 
-    // Populate response with nested ward
+    // Populate response with nested ward and expanded event fields
     await newTask.populate([
       { 
         path: 'assign_to',
         populate: { path: 'ward', select: 'ward_name ward_number' },
         select: 'name email ward localities'
       },
-      { path: 'created_by', select: 'name email' }
+      { path: 'created_by', select: 'name email' },
+      { 
+        path: 'event', 
+        select: 'eventTitle date time status venue eventType targetAttendance description' // Expanded for modal
+      }
     ]);
 
     res.status(201).json({
@@ -77,7 +102,11 @@ const getTasks = async (req, res) => {
           populate: { path: 'ward', select: 'ward_name ward_number' },
           select: 'name email ward localities'
         },
-        { path: 'created_by', select: 'name email' }
+        { path: 'created_by', select: 'name email' },
+        { 
+          path: 'event', 
+          select: 'eventTitle date time status venue eventType targetAttendance description' // Expanded for modal
+        }
       ])
       .sort({ createdAt: -1 });
 

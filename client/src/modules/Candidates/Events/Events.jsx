@@ -1,12 +1,13 @@
-// Events.jsx - Added status badge with background colors and icons
+// Updated Events.jsx - Added published toggle in form and filter in list
 import React, { useState, useEffect, useContext } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Switch } from '@/components/ui/switch'
 import { Progress } from '@/components/ui/progress'
-import { Calendar, Clock, MapPin, Check, Camera, Search, ChevronDown, CalendarIcon, Dot, Trash2 } from 'lucide-react'
+import { Calendar, Clock, MapPin, Check, Camera, Search, ChevronDown, CalendarIcon, Dot, Trash2, Eye, EyeOff } from 'lucide-react'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
@@ -27,12 +28,14 @@ const Events = () => {
     venue: '',
     targetAttendance: '',
     description: '',
-    status: 'scheduled'
+    status: 'scheduled',
+    published: false
   })
   const [loading, setLoading] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   const [filterType, setFilterType] = useState('all')
   const [filterStatus, setFilterStatus] = useState('all')
+  const [filterPublished, setFilterPublished] = useState('all')
 
   const now = new Date()
 
@@ -44,7 +47,12 @@ const Events = () => {
 
   const fetchEvents = async () => {
     try {
-      const response = await axiosInstance.get('/events')
+      // Pass published filter as query param if set
+      const params = new URLSearchParams()
+      if (filterPublished !== 'all') {
+        params.append('published', filterPublished === 'published')
+      }
+      const response = await axiosInstance.get(`/events?${params.toString()}`)
       setEvents(response.data.data || [])
     } catch (error) {
       console.error('Failed to fetch events:', error)
@@ -58,6 +66,10 @@ const Events = () => {
 
   const handleSelectChange = (name, value) => {
     setFormData(prev => ({ ...prev, [name]: value }))
+  }
+
+  const handlePublishedChange = (checked) => {
+    setFormData(prev => ({ ...prev, published: checked }))
   }
 
   const handleSubmit = async (e) => {
@@ -77,7 +89,7 @@ const Events = () => {
       setOpen(false)
       setIsEditing(false)
       setEditingEvent(null)
-      setFormData({ eventTitle: '', eventType: '', date: '', time: '', venue: '', targetAttendance: '', description: '', status: 'scheduled' })
+      setFormData({ eventTitle: '', eventType: '', date: '', time: '', venue: '', targetAttendance: '', description: '', status: 'scheduled', published: false })
       fetchEvents()
     } catch (error) {
       console.error('Failed to save event:', error)
@@ -97,9 +109,19 @@ const Events = () => {
       venue: event.venue,
       targetAttendance: event.targetAttendance,
       description: event.description || '',
-      status: event.status
+      status: event.status,
+      published: event.published || false
     })
     setOpen(true)
+  }
+
+  const handleTogglePublished = async (eventId) => {
+    try {
+      await axiosInstance.patch(`/events/${eventId}/toggle-published`)
+      fetchEvents()
+    } catch (error) {
+      console.error('Failed to toggle published:', error)
+    }
   }
 
   const handleComplete = async (eventId) => {
@@ -166,6 +188,14 @@ const Events = () => {
       default:
         return 'bg-gray-100 text-gray-800'
     }
+  }
+
+  const getPublishedIcon = (published) => {
+    return published ? <Eye className="h-4 w-4 text-green-500" /> : <EyeOff className="h-4 w-4 text-gray-500" />
+  }
+
+  const getPublishedBadgeClass = (published) => {
+    return published ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
   }
 
   const getProgressValue = (event) => {
@@ -254,6 +284,14 @@ const Events = () => {
                   <Label htmlFor="description">Description</Label>
                   <Textarea id="description" name="description" value={formData.description} onChange={handleInputChange} />
                 </div>
+                <div className="flex items-center space-x-2">
+                  <Switch
+                    id="published"
+                    checked={formData.published}
+                    onCheckedChange={handlePublishedChange}
+                  />
+                  <Label htmlFor="published">Published</Label>
+                </div>
                 {isEditing && (
                   <div>
                     <Label htmlFor="status">Status</Label>
@@ -300,7 +338,7 @@ const Events = () => {
             <p className="text-xs text-muted-foreground">Next 30 days</p>
           </CardContent>
         </Card>
-     </div>
+      </div>
 
       {/* Main Content Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -338,6 +376,16 @@ const Events = () => {
                   <SelectItem value="scheduled">Scheduled</SelectItem>
                 </SelectContent>
               </Select>
+              <Select value={filterPublished} onValueChange={(value) => { setFilterPublished(value); fetchEvents(); }}>
+                <SelectTrigger className="w-[140px]">
+                  <SelectValue placeholder="All Published" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Published</SelectItem>
+                  <SelectItem value="published">Published</SelectItem>
+                  <SelectItem value="unpublished">Unpublished</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="space-y-4">
@@ -356,6 +404,12 @@ const Events = () => {
                         <Badge variant="secondary" className={getStatusBadgeClass(event.status)}>
                           {event.status}
                         </Badge>
+                        <div className="flex items-center gap-1 ml-2">
+                          {getPublishedIcon(event.published)}
+                          <Badge variant="secondary" className={getPublishedBadgeClass(event.published)}>
+                            {event.published ? 'Published' : 'Draft'}
+                          </Badge>
+                        </div>
                       </div>
                     </div>
                     <p className="text-sm text-muted-foreground">{event.description}</p>
@@ -375,6 +429,9 @@ const Events = () => {
                       <div className="text-xs text-muted-foreground">{getProgressLabel(event)}</div>
                     </div>
                     <div className="flex gap-2 flex-wrap">
+                      <Button variant="ghost" size="sm" onClick={() => handleTogglePublished(event._id)}>
+                        {event.published ? 'Unpublish' : 'Publish'}
+                      </Button>
                       {event.status === 'ongoing' && (
                         <Button variant="ghost" size="sm" onClick={() => handleComplete(event._id)}>
                           Complete
@@ -417,6 +474,9 @@ const Events = () => {
                   <div className="text-xs text-muted-foreground">Target {event.targetAttendance} attendees</div>
                 </div>
                 {event.status === 'ongoing' && <Badge className="text-xs">Live</Badge>}
+                <Badge variant="secondary" className={getPublishedBadgeClass(event.published)} >
+                  {event.published ? 'Pub' : 'Draft'}
+                </Badge>
               </div>
             ))}
             {upcomingThisWeek.length === 0 && (

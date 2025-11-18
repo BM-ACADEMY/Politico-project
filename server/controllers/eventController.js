@@ -1,4 +1,4 @@
-// eventController.js - With debugging logs and proper error handling for createdBy
+// Updated eventController.js - Added handling for 'published' field with toggle endpoint
 const Event = require("../models/Eventmodel");
 const cron = require('node-cron');
 
@@ -12,7 +12,7 @@ const getUserId = (req) => {
 };
 
 // Create new event
-exports.createEvent = async (req, res) => {
+const createEvent = async (req, res) => {
   try {
     console.log('req.user in createEvent:', req.user); // Debug log
     const userId = getUserId(req);
@@ -20,7 +20,7 @@ exports.createEvent = async (req, res) => {
       return res.status(401).json({ success: false, message: 'User not authenticated' });
     }
 
-    const { date, time } = req.body;
+    const { date, time, published = false } = req.body;
     const [hours, minutes] = time.split(':').map(Number);
     const startTime = new Date(date);
     startTime.setHours(hours, minutes, 0, 0);
@@ -29,6 +29,7 @@ exports.createEvent = async (req, res) => {
       ...req.body,
       startTime,
       actualAttendance: 0,
+      published,
       createdBy: userId,
     };
 
@@ -49,14 +50,54 @@ exports.createEvent = async (req, res) => {
   }
 };
 
-// Get all events for the authenticated user only
-exports.getAllEvents = async (req, res) => {
+// Toggle published status for an event
+const togglePublished = async (req, res) => {
   try {
     const userId = getUserId(req);
     if (!userId) {
       return res.status(401).json({ success: false, message: 'User not authenticated' });
     }
-    const events = await Event.find({ createdBy: userId }).populate("createdBy", "name email");
+
+    const { id } = req.params;
+    const event = await Event.findOne({ _id: id, createdBy: userId });
+    if (!event) {
+      return res.status(404).json({ success: false, message: "Event not found" });
+    }
+
+    event.published = !event.published;
+    const updatedEvent = await event.save();
+
+    res.status(200).json({
+      success: true,
+      message: `Event ${event.published ? 'unpublished' : 'published'}`,
+      data: updatedEvent,
+    });
+  } catch (error) {
+    console.error('Toggle published error:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// Get all events for the authenticated user only (with optional published and status filters)
+const getAllEvents = async (req, res) => {
+  try {
+    const userId = getUserId(req);
+    if (!userId) {
+      return res.status(401).json({ success: false, message: 'User not authenticated' });
+    }
+
+    const { published, status } = req.query; // Added status query param support
+    const filter = { createdBy: userId };
+    if (published !== undefined) {
+      filter.published = published === 'true';
+    }
+    if (status) {
+      // Handle comma-separated statuses (e.g., 'scheduled,ongoing')
+      const statusArray = status.split(',').map(s => s.trim());
+      filter.status = { $in: statusArray };
+    }
+
+    const events = await Event.find(filter).populate("createdBy", "name email");
     res.status(200).json({ success: true, data: events });
   } catch (error) {
     console.error('Get events error:', error);
@@ -65,7 +106,7 @@ exports.getAllEvents = async (req, res) => {
 };
 
 // Get single event by ID (ensure it belongs to user)
-exports.getEventById = async (req, res) => {
+const getEventById = async (req, res) => {
   try {
     const userId = getUserId(req);
     if (!userId) {
@@ -82,14 +123,14 @@ exports.getEventById = async (req, res) => {
 };
 
 // Update event (ensure it belongs to user)
-exports.updateEvent = async (req, res) => {
+const updateEvent = async (req, res) => {
   try {
     const userId = getUserId(req);
     if (!userId) {
       return res.status(401).json({ success: false, message: 'User not authenticated' });
     }
 
-    const { date, time } = req.body;
+    const { date, time, published } = req.body;
     let startTime = null;
     if (date && time) {
       const [hours, minutes] = time.split(':').map(Number);
@@ -99,6 +140,7 @@ exports.updateEvent = async (req, res) => {
 
     const updateData = { ...req.body };
     if (startTime) updateData.startTime = startTime;
+    if (published !== undefined) updateData.published = published;
 
     const updatedEvent = await Event.findOneAndUpdate(
       { _id: req.params.id, createdBy: userId },
@@ -119,7 +161,7 @@ exports.updateEvent = async (req, res) => {
 };
 
 // Delete event (ensure it belongs to user)
-exports.deleteEvent = async (req, res) => {
+const deleteEvent = async (req, res) => {
   try {
     const userId = getUserId(req);
     if (!userId) {
@@ -153,3 +195,12 @@ cron.schedule('* * * * *', async () => {
     console.error('Cron job error:', error);
   }
 });
+
+module.exports = {
+  createEvent,
+  togglePublished,
+  getAllEvents,
+  getEventById,
+  updateEvent,
+  deleteEvent,
+};
