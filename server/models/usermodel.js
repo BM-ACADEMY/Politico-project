@@ -1,4 +1,4 @@
-// models/user.js
+// models/usermodel.js (No change needed, otp remains String)
 const mongoose = require("mongoose");
 const bcrypt = require("bcryptjs");
 
@@ -9,6 +9,8 @@ const userSchema = new mongoose.Schema({
   password: { type: String, required: true, maxlength: 255 },
   role_id: { type: mongoose.Schema.Types.ObjectId, ref: "Role", required: true },
   created_by: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+  otp: { type: String, default: null }, // Plain OTP
+  otpExpiry: { type: Date, default: null }, // OTP expiry
 }, { timestamps: { createdAt: "created_at", updatedAt: "updated_at" } });
 
 // Hash password
@@ -23,5 +25,4 @@ userSchema.methods.matchPassword = async function(enteredPassword) {
   return await bcrypt.compare(enteredPassword, this.password);
 };
 
-// ✅ ADD THIS GUARD TO PREVENT OVERWRITE
-module.exports =  mongoose.model("User", userSchema);
+module.exports = mongoose.model("User", userSchema);

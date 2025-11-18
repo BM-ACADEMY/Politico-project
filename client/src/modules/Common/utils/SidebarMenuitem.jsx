@@ -8,7 +8,7 @@ import {
 } from "react-icons/md";
 import { FaBriefcase } from "react-icons/fa";
 import { MdPlaylistAdd } from "react-icons/md";
-import { Award, Badge, Calendar, ChartColumn, ChartLine, Image, LayoutDashboard, MapPin, User, User2Icon, Users, Vote } from "lucide-react";
+import { Award, Badge, Calendar, ChartColumn, ChartLine, Image, LayoutDashboard, MapPin, NotepadText, User, User2Icon, Users, Vote } from "lucide-react";
 
 import { RiTeamLine } from "react-icons/ri";
 import { LuImageUp } from "react-icons/lu";
@@ -35,7 +35,8 @@ export const sidebarMenuItems = {
   ],
   volunteers: [
     { url: "/volunteers-dashboard", title: "Dashboard", icon: MdDashboard },
-    { url: "/volunteers-dashboard/voters", title: "My Voters", icon: Vote },
+    // { url: "/volunteers-dashboard/voters", title: "My Voters", icon: Vote },
+    { url: "/volunteers-dashboard/task", title: "My Task", icon: NotepadText },
 
   ],
 };

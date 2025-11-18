@@ -1,4 +1,4 @@
-// src/Modules/Auth/Login.jsx
+// src/Modules/Auth/Login.jsx (Updated - Uncomment forgot password link)
 import { Mail, Lock, Loader2 } from "lucide-react";
 import { useContext, useState } from "react";
 import { Link } from "react-router-dom";
@@ -76,11 +76,11 @@ const Login = () => {
           />
         </div>
 
-        {/* <div className="mt-5 text-left">
+        <div className="mt-5 text-left">
           <Link to="/forgot-password" className="text-sm text-indigo-600 hover:underline">
             Forgot password?
           </Link>
-        </div> */}
+        </div>
 
         <button
           type="submit"
