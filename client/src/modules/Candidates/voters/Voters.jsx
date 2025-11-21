@@ -39,7 +39,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Edit, Trash2, Plus, Eye, MoreHorizontal, Upload, Download } from 'lucide-react';
+import { Edit, Trash2, Plus, Eye, MoreHorizontal, Upload, Download, MessageSquare } from 'lucide-react';
 import { showToast } from '@/modules/Common/toast/customToast';
 import {
   Card,
@@ -54,7 +54,9 @@ const Voters = () => {
   const [open, setOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [viewImageOpen, setViewImageOpen] = useState(false);
+  const [messageOpen, setMessageOpen] = useState(false); // New state for message dialog
   const [selectedImages, setSelectedImages] = useState({ voter_image: '', aadhar_image: '' });
+  const [selectedVoterForMessage, setSelectedVoterForMessage] = useState(null); // New state for selected voter in message dialog
   const [wards, setWards] = useState([]);
   const [voters, setVoters] = useState([]);
   const [counts, setCounts] = useState({ total: 0, neutral: 0, supporters: 0, opposition: 0 });
@@ -87,6 +89,7 @@ const Voters = () => {
   const [filters, setFilters] = useState({ ward: 'all', support: 'all', created_by: 'all' });
   const [uniqueCreators, setUniqueCreators] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const [newMessage, setNewMessage] = useState(''); // New state for message input
 
   useEffect(() => {
     fetchWards();
@@ -111,7 +114,8 @@ const Voters = () => {
         voter.support.toLowerCase().includes(term) ||
         (voter.ward?.ward_name || '').toLowerCase().includes(term) ||
         addressStr.toLowerCase().includes(term) ||
-        voter.aadhar_number.includes(term)
+        voter.aadhar_number.includes(term) ||
+        (voter.message && voter.message.some(msg => msg.toLowerCase().includes(term))) // Search in messages too
       );
     });
   }, [voters, searchTerm]);
@@ -303,6 +307,46 @@ const Voters = () => {
 
   const handleFileSelect = (e) => {
     setImportFile(e.target.files?.[0] || null);
+  };
+
+  // New handler for submitting a message
+  const handleSubmitMessage = async (e) => {
+    e.preventDefault();
+    if (!newMessage.trim()) {
+      showToast('error', 'Message cannot be empty');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      // Append new message to the existing array
+      const updatedMessages = [...(selectedVoterForMessage.message || []), newMessage.trim()];
+      const updateData = { message: updatedMessages };
+
+      const submitData = new FormData();
+      Object.keys(updateData).forEach((key) => {
+        submitData.append(key, JSON.stringify(updateData[key]));
+      });
+
+      const config = {
+        headers: {
+          'Content-Type': undefined,
+        },
+        withCredentials: true,
+      };
+
+      await axiosInstance.put(`/voters/${selectedVoterForMessage._id}`, submitData, config);
+      showToast('success', 'Message added successfully');
+      setMessageOpen(false);
+      setNewMessage('');
+      setSelectedVoterForMessage(null);
+      fetchVoters(); // Refresh voters to update messages
+    } catch (error) {
+      showToast('error', error.response?.data?.message || 'Failed to add message');
+      console.error('Submit message error:', error.response);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleImport = async () => {
@@ -585,6 +629,13 @@ const Voters = () => {
       aadhar_image: voter.aadhar_image,
     });
     setViewImageOpen(true);
+  };
+
+  // New handler for opening message dialog
+  const handleAddMessage = (voter) => {
+    setSelectedVoterForMessage(voter);
+    setNewMessage('');
+    setMessageOpen(true);
   };
 
   const getSupportBadge = (support) => {
@@ -941,6 +992,36 @@ const Voters = () => {
         </div>
       </div>
 
+      {/* New Dialog for Adding Message */}
+      <Dialog open={messageOpen} onOpenChange={(o) => { setMessageOpen(o); if (!o) { setNewMessage(''); setSelectedVoterForMessage(null); } }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add Message for {selectedVoterForMessage?.name}</DialogTitle>
+            <DialogDescription>
+              Add a message or note for this voter. Messages are stored as an array and can be used for communication or notes.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleSubmitMessage} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="newMessage">Message</Label>
+              <Textarea
+                id="newMessage"
+                value={newMessage}
+                onChange={(e) => setNewMessage(e.target.value)}
+                placeholder="Enter your message here..."
+                rows={4}
+                required
+              />
+            </div>
+            <DialogFooter>
+              <Button type="submit" className="ml-auto" disabled={loading || !newMessage.trim()}>
+                {loading ? 'Sending...' : 'Add Message'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={viewImageOpen} onOpenChange={setViewImageOpen}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto sm:max-w-6xl">
           <DialogHeader>
@@ -1035,6 +1116,10 @@ const Voters = () => {
                       <DropdownMenuItem onClick={() => handleViewImages(voter)}>
                         <Eye className="mr-2 h-4 w-4" />
                         View Images
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleAddMessage(voter)}>
+                        <MessageSquare className="mr-2 h-4 w-4" />
+                        Add Message
                       </DropdownMenuItem>
                       <DropdownMenuItem onClick={() => handleEdit(voter)}>
                         <Edit className="mr-2 h-4 w-4" />
