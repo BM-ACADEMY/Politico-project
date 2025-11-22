@@ -35,7 +35,7 @@ export const sidebarMenuItems = {
   ],
   volunteers: [
     { url: "/volunteers-dashboard", title: "Dashboard", icon: MdDashboard },
-    // { url: "/volunteers-dashboard/voters", title: "My Voters", icon: Vote },
+    { url: "/volunteers-dashboard/voters", title: "My Voters", icon: Vote },
     { url: "/volunteers-dashboard/task", title: "My Task", icon: NotepadText },
 
   ],

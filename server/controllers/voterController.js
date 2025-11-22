@@ -1,16 +1,3 @@
-// Updated controllers/voterController.js
-// Enhanced with role-based access: 
-// - Admin: full access to all wards/voters
-// - Candidate: access to own wards/voters
-// - Volunteer: access to creator candidate's wards/voters
-// Retained all existing logic (e.g., address validation, file uploads, cleanup)
-// Fixed wardFilter to ObjectId consistently
-// Added getVoterById with access checks
-// Fix for frontend error: For unauthorized reads (getVoters, getWardsForVoter), return empty data instead of 403 to prevent crash on undefined stats.total
-// Added support for created_by filter in getVoters
-// FIXED: Added check for accessibleWardIds.length === 0 for non-admins to return empty response (prevents showing all voters if no wards assigned to candidate/volunteer's candidate)
-// FIXED: Changed roleName check for volunteers from "volunteers" to "volunteer" (assuming standard singular role name; adjust if DB uses plural)
-
 const Voter = require("../models/Voter");
 const Ward = require("../models/ward");
 const Candidate = require("../models/candidateModel");
@@ -23,7 +10,7 @@ const { processFile, deleteFile } = require("../utils/upload");
 
 // Helper function to get accessible candidate ID based on role
 const getAccessibleCandidateId = async (userId, userEmail, roleName) => {
-  if (roleName === "admin") {
+  if (roleName === "root_admin") {
     return null; // Full access
   } else if (roleName === "candidate") {
     const userCandidate = await Candidate.findOne({ created_by: userId });
@@ -31,7 +18,7 @@ const getAccessibleCandidateId = async (userId, userEmail, roleName) => {
       return null; // No access profile
     }
     return userCandidate._id;
-  } else if (roleName === "volunteer") { // FIXED: Changed from "volunteers" to "volunteer"
+  } else if (roleName === "volunteer") {
     const volunteer = await Volunteer.findOne({ email: userEmail });
     if (!volunteer) {
       return null; // No volunteer profile
@@ -157,13 +144,13 @@ const getVoters = async (req, res) => {
     if (accessibleCandidateId) {
       const userWards = await Ward.find({ candidate_id: accessibleCandidateId }).select("_id");
       accessibleWardIds = userWards.map((w) => w._id);
-    } else if (roleName !== "admin") {
+    } else if (roleName !== "root_admin") {
       // Unauthorized: return empty
       return emptyVotersResponse(res);
     }
 
-    // FIXED: If non-admin and no accessible wards, return empty (prevents showing all voters when candidate/volunteer has no wards assigned)
-    if (roleName !== "admin" && accessibleWardIds.length === 0) {
+    // FIXED: If non-root_admin and no accessible wards, return empty (prevents showing all voters when candidate/volunteer has no wards assigned)
+    if (roleName !== "root_admin" && accessibleWardIds.length === 0) {
       return emptyVotersResponse(res);
     }
 
@@ -179,8 +166,8 @@ const getVoters = async (req, res) => {
     let finalQuery = { ...query };
     if (wardFilter) {
       const wardFilterObjId = new mongoose.Types.ObjectId(wardFilter);
-      // For non-admins, validate wardFilter is accessible
-      if (roleName !== "admin" && !accessibleWardIds.some(id => id.equals(wardFilterObjId))) {
+      // For non-root_admins, validate wardFilter is accessible
+      if (roleName !== "root_admin" && !accessibleWardIds.some(id => id.equals(wardFilterObjId))) {
         // For filter unauthorized, return empty instead of 403
         return emptyVotersResponse(res);
       }
@@ -230,7 +217,7 @@ const getVoterById = async (req, res) => {
     }
     const roleName = user.role_id.name;
     let accessibleWardIds = [];
-    if (roleName !== "admin") {
+    if (roleName !== "root_admin") {
       const accessibleCandidateId = await getAccessibleCandidateId(req.user.id, user.email, roleName);
       if (!accessibleCandidateId) {
         return res.status(404).json({ success: false, message: "Voter not found" });
@@ -240,7 +227,7 @@ const getVoterById = async (req, res) => {
     }
 
     // Check access
-    if (roleName !== "admin" &&
+    if (roleName !== "root_admin" &&
         !accessibleWardIds.some(id => id.equals(voter.ward._id)) &&
         String(voter.created_by._id) !== String(req.user.id)) {
       return res.status(404).json({ success: false, message: "Voter not found" });
@@ -263,7 +250,7 @@ const updateVoter = async (req, res) => {
     }
     const roleName = user.role_id.name;
     let accessibleWardIds = [];
-    if (roleName !== "admin") {
+    if (roleName !== "root_admin") {
       const accessibleCandidateId = await getAccessibleCandidateId(req.user.id, user.email, roleName);
       if (!accessibleCandidateId) {
         return res.status(403).json({ success: false, message: "Access denied: Profile not found" });
@@ -278,10 +265,19 @@ const updateVoter = async (req, res) => {
     }
 
     // Access check
-    if (roleName !== "admin" &&
+    if (roleName !== "root_admin" &&
         !accessibleWardIds.some(id => id.equals(voter.ward._id)) &&
         String(voter.created_by._id) !== String(req.user.id)) {
       return res.status(403).json({ success: false, message: "Not authorized to update this voter" });
+    }
+
+    // Parse message if it's a JSON string from FormData
+    if (req.body.message && typeof req.body.message === 'string') {
+      try {
+        req.body.message = JSON.parse(req.body.message);
+      } catch (parseError) {
+        return res.status(400).json({ success: false, message: 'Invalid message format' });
+      }
     }
 
     // Handle optional file updates
@@ -332,7 +328,7 @@ const deleteVoter = async (req, res) => {
     }
     const roleName = user.role_id.name;
     let accessibleWardIds = [];
-    if (roleName !== "admin") {
+    if (roleName !== "root_admin") {
       const accessibleCandidateId = await getAccessibleCandidateId(req.user.id, user.email, roleName);
       if (!accessibleCandidateId) {
         return res.status(403).json({ success: false, message: "Access denied: Profile not found" });
@@ -346,7 +342,7 @@ const deleteVoter = async (req, res) => {
     if (!voter) return res.status(404).json({ success: false, message: "Voter not found" });
 
     // Access check
-    if (roleName !== "admin" &&
+    if (roleName !== "root_admin" &&
         !accessibleWardIds.some(id => id.equals(voter.ward._id)) &&
         String(voter.created_by._id) !== String(req.user.id)) {
       return res.status(403).json({ success: false, message: "Not authorized to delete this voter" });
@@ -389,7 +385,7 @@ const getWardsForVoter = async (req, res) => {
     }
     const roleName = user.role_id.name;
     let query = {};
-    if (roleName === "admin") {
+    if (roleName === "root_admin") {
       // Show all wards
     } else {
       const accessibleCandidateId = await getAccessibleCandidateId(req.user.id, user.email, roleName);

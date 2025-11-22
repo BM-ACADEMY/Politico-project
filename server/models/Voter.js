@@ -19,15 +19,22 @@ const voterSchema = new mongoose.Schema(
     dob: { type: Date },
     phone: { type: String, required: true, unique: true },
     voter_id: { type: String, required: true, unique: true },
-   voter_image: { type: String, required: false, default: null },
+    voter_image: { type: String, required: false, default: null },
     aadhar_number: { type: String, required: true, unique: true },
     aadhar_image: { type: String, required: false, default: null },
-    support: { 
-      type: String, 
-      enum: ['neutral', 'supporter', 'opposition'], 
-      default: 'neutral',
-      required: true 
+    support: {
+      type: String,
+      enum: ["neutral", "supporter", "opposition"],
+      default: "neutral",
+      required: true,
     }, // New support field
+
+    message: [
+      {
+        type: String,
+        required: false,
+      },
+    ],
 
     ward: {
       type: mongoose.Schema.Types.ObjectId,
@@ -36,9 +43,13 @@ const voterSchema = new mongoose.Schema(
     },
 
     address: { type: addressSchema, required: true },
-    created_by: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+    created_by: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+    },
   },
   { timestamps: true }
 );
 
-module.exports = mongoose.model("Voter", voterSchema); 
+module.exports = mongoose.model("Voter", voterSchema);

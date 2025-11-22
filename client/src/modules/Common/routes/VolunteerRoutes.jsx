@@ -12,9 +12,9 @@ export const volunteerRoutes = [
     path: '/volunteers-dashboard/task',
     element: <PrivateRoute allowedRole="volunteers"><Task/></PrivateRoute>,
   },
-  // {
-  //   path: '/volunteers-dashboard/voters',
-  //   element: <PrivateRoute allowedRole="volunteers"><Voters/></PrivateRoute>,
-  // },
+  {
+    path: '/volunteers-dashboard/voters',
+    element: <PrivateRoute allowedRole="volunteers"><Voters/></PrivateRoute>,
+  },
 
 ];
