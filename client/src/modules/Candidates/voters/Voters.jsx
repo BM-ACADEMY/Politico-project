@@ -48,15 +48,18 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 const Voters = () => {
   const { user } = useContext(AuthContext);
   const [open, setOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [viewImageOpen, setViewImageOpen] = useState(false);
-  const [messageOpen, setMessageOpen] = useState(false); // New state for message dialog
+  const [viewMessageOpen, setViewMessageOpen] = useState(false); // New state for view messages dialog
+  const [messageOpen, setMessageOpen] = useState(false); // State for add message dialog
+  const [editDialogOpen, setEditDialogOpen] = useState(false); // State for edit message dialog
   const [selectedImages, setSelectedImages] = useState({ voter_image: '', aadhar_image: '' });
-  const [selectedVoterForMessage, setSelectedVoterForMessage] = useState(null); // New state for selected voter in message dialog
+  const [selectedVoterForMessage, setSelectedVoterForMessage] = useState(null); // For both add and view
   const [wards, setWards] = useState([]);
   const [voters, setVoters] = useState([]);
   const [counts, setCounts] = useState({ total: 0, neutral: 0, supporters: 0, opposition: 0 });
@@ -89,7 +92,9 @@ const Voters = () => {
   const [filters, setFilters] = useState({ ward: 'all', support: 'all', created_by: 'all' });
   const [uniqueCreators, setUniqueCreators] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [newMessage, setNewMessage] = useState(''); // New state for message input
+  const [newMessage, setNewMessage] = useState(''); // State for new message input
+  const [editingIndex, setEditingIndex] = useState(-1);
+  const [editMessage, setEditMessage] = useState(''); // State for edit message input
 
   useEffect(() => {
     fetchWards();
@@ -105,6 +110,7 @@ const Voters = () => {
     return voters.filter((voter) => {
       const dobStr = new Date(voter.dob).toLocaleDateString();
       const addressStr = `${voter.address.house_no}, ${voter.address.locality}, ${voter.address.street}, ${voter.address.city} - ${voter.address.postal_code}`;
+      const messages = voter.message || [];
       return (
         voter.name.toLowerCase().includes(term) ||
         voter.fathers_name.toLowerCase().includes(term) ||
@@ -115,7 +121,7 @@ const Voters = () => {
         (voter.ward?.ward_name || '').toLowerCase().includes(term) ||
         addressStr.toLowerCase().includes(term) ||
         voter.aadhar_number.includes(term) ||
-        (voter.message && voter.message.some(msg => msg.toLowerCase().includes(term))) // Search in messages too
+        messages.some(msg => msg.toLowerCase().includes(term))
       );
     });
   }, [voters, searchTerm]);
@@ -309,7 +315,7 @@ const Voters = () => {
     setImportFile(e.target.files?.[0] || null);
   };
 
-  // New handler for submitting a message
+  // Handler for submitting a new message
   const handleSubmitMessage = async (e) => {
     e.preventDefault();
     if (!newMessage.trim()) {
@@ -324,9 +330,7 @@ const Voters = () => {
       const updateData = { message: updatedMessages };
 
       const submitData = new FormData();
-      Object.keys(updateData).forEach((key) => {
-        submitData.append(key, JSON.stringify(updateData[key]));
-      });
+      submitData.append('message', JSON.stringify(updatedMessages));
 
       const config = {
         headers: {
@@ -337,16 +341,109 @@ const Voters = () => {
 
       await axiosInstance.put(`/voters/${selectedVoterForMessage._id}`, submitData, config);
       showToast('success', 'Message added successfully');
+      // Local update
+      setSelectedVoterForMessage(prev => ({ ...prev, message: updatedMessages }));
       setMessageOpen(false);
       setNewMessage('');
       setSelectedVoterForMessage(null);
-      fetchVoters(); // Refresh voters to update messages
     } catch (error) {
       showToast('error', error.response?.data?.message || 'Failed to add message');
       console.error('Submit message error:', error.response);
     } finally {
       setLoading(false);
     }
+  };
+
+  // Handler for updating a message
+  const handleUpdateMessage = async (e) => {
+    e.preventDefault();
+    if (!editMessage.trim()) {
+      showToast('error', 'Message cannot be empty');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const messages = selectedVoterForMessage?.message || [];
+      const updatedMessages = [...messages];
+      updatedMessages[editingIndex] = editMessage.trim();
+      const updateData = { message: updatedMessages };
+
+      const submitData = new FormData();
+      submitData.append('message', JSON.stringify(updatedMessages));
+
+      const config = {
+        headers: {
+          'Content-Type': undefined,
+        },
+        withCredentials: true,
+      };
+
+      await axiosInstance.put(`/voters/${selectedVoterForMessage._id}`, submitData, config);
+      showToast('success', 'Message updated successfully');
+      // Local update
+      setSelectedVoterForMessage(prev => ({ ...prev, message: updatedMessages }));
+      setEditDialogOpen(false);
+      setEditMessage('');
+      setEditingIndex(-1);
+    } catch (error) {
+      showToast('error', error.response?.data?.message || 'Failed to update message');
+      console.error('Update message error:', error.response);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Handler for deleting a message
+  const handleDeleteMessage = async (idx) => {
+    if (!window.confirm(`Are you sure you want to delete message ${idx + 1}?`)) return;
+
+    setLoading(true);
+    try {
+      const messages = selectedVoterForMessage?.message || [];
+      const updatedMessages = messages.filter((_, i) => i !== idx);
+      const updateData = { message: updatedMessages };
+
+      const submitData = new FormData();
+      submitData.append('message', JSON.stringify(updatedMessages));
+
+      const config = {
+        headers: {
+          'Content-Type': undefined,
+        },
+        withCredentials: true,
+      };
+
+      await axiosInstance.put(`/voters/${selectedVoterForMessage._id}`, submitData, config);
+      showToast('success', 'Message deleted successfully');
+      // Local update
+      setSelectedVoterForMessage(prev => ({ ...prev, message: updatedMessages }));
+    } catch (error) {
+      showToast('error', error.response?.data?.message || 'Failed to delete message');
+      console.error('Delete message error:', error.response);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // New handler for viewing messages
+  const handleViewMessages = (voter) => {
+    setSelectedVoterForMessage(voter);
+    setViewMessageOpen(true);
+  };
+
+  // New handler for adding message
+  const handleAddMessage = (voter) => {
+    setSelectedVoterForMessage(voter);
+    setNewMessage('');
+    setMessageOpen(true);
+  };
+
+  // Handler for editing message
+  const handleEditMessage = (idx, msg) => {
+    setEditingIndex(idx);
+    setEditMessage(msg);
+    setEditDialogOpen(true);
   };
 
   const handleImport = async () => {
@@ -631,13 +728,6 @@ const Voters = () => {
     setViewImageOpen(true);
   };
 
-  // New handler for opening message dialog
-  const handleAddMessage = (voter) => {
-    setSelectedVoterForMessage(voter);
-    setNewMessage('');
-    setMessageOpen(true);
-  };
-
   const getSupportBadge = (support) => {
     switch (support) {
       case 'neutral': return { variant: 'secondary', color: 'bg-yellow-100 text-yellow-800' };
@@ -646,6 +736,8 @@ const Voters = () => {
       default: return { variant: 'secondary', color: 'bg-gray-100 text-gray-800' };
     }
   };
+
+  const messages = selectedVoterForMessage?.message || [];
 
   return (
     <div className="container mx-auto p-4 sm:p-6">
@@ -935,7 +1027,7 @@ const Voters = () => {
         <div className="w-full lg:w-auto flex-1 min-w-[200px] flex flex-col gap-1.5">
           <Label>Search</Label>
           <Input
-            placeholder="Search by Name, Father Name, DOB, Phone, Voter ID, Support, Ward, Address, Aadhar..."
+            placeholder="Search by Name, Father Name, DOB, Phone, Voter ID, Support, Ward, Address, Aadhar, Messages..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full"
@@ -992,7 +1084,58 @@ const Voters = () => {
         </div>
       </div>
 
-      {/* New Dialog for Adding Message */}
+      {/* Dialog for Viewing Messages */}
+      <Dialog open={viewMessageOpen} onOpenChange={(o) => { setViewMessageOpen(o); if (!o) setSelectedVoterForMessage(null); }}>
+        <DialogContent className="max-w-2xl max-h-[80vh]">
+          <DialogHeader>
+            <DialogTitle>Messages for {selectedVoterForMessage?.name}</DialogTitle>
+            <DialogDescription>
+              View all messages/notes associated with this voter.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            {messages.length > 0 ? (
+              <ScrollArea className="h-64 w-full rounded-md border p-4">
+                <div className="space-y-3">
+                  {messages.map((msg, idx) => (
+                    <div key={idx} className="flex items-start gap-3">
+                      <span className="w-8 text-right text-sm font-medium text-muted-foreground">{idx + 1}.</span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm bg-muted p-3 rounded-md whitespace-pre-wrap break-words">{msg}</p>
+                      </div>
+                      <div className="flex gap-2 ml-auto">
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          onClick={() => handleEditMessage(idx, msg)}
+                          title="Edit"
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="destructive"
+                          size="icon"
+                          onClick={() => handleDeleteMessage(idx)}
+                          title="Delete"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </ScrollArea>
+            ) : (
+              <p className="text-muted-foreground text-center py-8">No messages yet.</p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button onClick={() => setViewMessageOpen(false)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog for Adding Message */}
       <Dialog open={messageOpen} onOpenChange={(o) => { setMessageOpen(o); if (!o) { setNewMessage(''); setSelectedVoterForMessage(null); } }}>
         <DialogContent>
           <DialogHeader>
@@ -1003,7 +1146,7 @@ const Voters = () => {
           </DialogHeader>
           <form onSubmit={handleSubmitMessage} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="newMessage">Message</Label>
+              <Label htmlFor="newMessage">New Message</Label>
               <Textarea
                 id="newMessage"
                 value={newMessage}
@@ -1015,7 +1158,37 @@ const Voters = () => {
             </div>
             <DialogFooter>
               <Button type="submit" className="ml-auto" disabled={loading || !newMessage.trim()}>
-                {loading ? 'Sending...' : 'Add Message'}
+                {loading ? 'Adding...' : 'Add Message'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog for Editing Message */}
+      <Dialog open={editDialogOpen} onOpenChange={(o) => { setEditDialogOpen(o); if (!o) { setEditMessage(''); setEditingIndex(-1); } }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Message for {selectedVoterForMessage?.name}</DialogTitle>
+            <DialogDescription>
+              Edit the selected message.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleUpdateMessage} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="editMessage">Message</Label>
+              <Textarea
+                id="editMessage"
+                value={editMessage}
+                onChange={(e) => setEditMessage(e.target.value)}
+                placeholder="Enter your message here..."
+                rows={4}
+                required
+              />
+            </div>
+            <DialogFooter>
+              <Button type="submit" className="ml-auto" disabled={loading || !editMessage.trim()}>
+                {loading ? 'Updating...' : 'Update Message'}
               </Button>
             </DialogFooter>
           </form>
@@ -1117,6 +1290,10 @@ const Voters = () => {
                         <Eye className="mr-2 h-4 w-4" />
                         View Images
                       </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleViewMessages(voter)}>
+                        <MessageSquare className="mr-2 h-4 w-4" />
+                        View Messages
+                      </DropdownMenuItem>
                       <DropdownMenuItem onClick={() => handleAddMessage(voter)}>
                         <MessageSquare className="mr-2 h-4 w-4" />
                         Add Message
@@ -1127,7 +1304,7 @@ const Voters = () => {
                       </DropdownMenuItem>
                       <DropdownMenuItem
                         onClick={() => handleDelete(voter._id)}
-                        className="focus:bg-destructive focus:text-destructive-foreground"
+                        // className="focus:bg-destructive focus:text-destructive-foreground"
                       >
                         <Trash2 className="mr-2 h-4 w-4" />
                         Delete

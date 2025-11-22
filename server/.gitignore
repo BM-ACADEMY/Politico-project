@@ -1,4 +1,6 @@
-# Logs
+# -----------------------------------------------------
+# LOG FILES
+# -----------------------------------------------------
 logs
 *.log
 npm-debug.log*
@@ -7,26 +9,64 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-# Node modules and build output
-node_modules
-dist
-dist-ssr
+# -----------------------------------------------------
+# NODE MODULES & BUILD OUTPUT
+# -----------------------------------------------------
+node_modules/
+dist/
+dist-ssr/
+build/
+.cache/
 *.local
 
-# Environment variables
+# -----------------------------------------------------
+# ENVIRONMENT VARIABLES (DO NOT PUSH TO GITHUB)
+# -----------------------------------------------------
 .env
 .env.local
-.env.development.local
-.env.production.local
-.env.test.local
+.env.*.local
+.env.development
+.env.production
+.env.test
 
-# Editor directories and files
+# Vite / React Environment Variables
+.vite-env.d.ts
+
+# -----------------------------------------------------
+# EDITOR & SYSTEM FILES
+# -----------------------------------------------------
+# VS Code
 .vscode/*
 !.vscode/extensions.json
-.idea
+
+# IntelliJ / WebStorm
+.idea/
+
+# OSX
 .DS_Store
+
+# Windows
+Thumbs.db
+
+# Others
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
+
+# -----------------------------------------------------
+# LINT / CACHE FILES
+# -----------------------------------------------------
+.eslintcache
+.stylelintcache
+.prettiercache
+
+# -----------------------------------------------------
+# REACT / NEXT / VITE SPECIFIC
+# -----------------------------------------------------
+*.tsbuildinfo
+.next/
+out/
+.vite/
+coverage/
