@@ -27,7 +27,6 @@ function App() {
         <Route path="/login" element={<PrivateRoute allowedRole="public"><Login /></PrivateRoute>} />
         <Route path="/" element={<PrivateRoute allowedRole="public"><Login /></PrivateRoute>} />
         <Route path="/forgot-password" element={<PrivateRoute allowedRole="public"><ForgotPassword /></PrivateRoute>} /> {/* New route */}
-
         {/* Protected Routes */}
         <Route element={<Page />}>
           {rootAdminRoutes.map((route) => (
