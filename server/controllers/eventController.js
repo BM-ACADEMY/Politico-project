@@ -196,6 +196,26 @@ cron.schedule('* * * * *', async () => {
   }
 });
 
+const getPublishedEvents = async (req, res) => {
+  try {
+    const events = await Event.find({ published: true })
+      .sort({ startTime: -1 }) // newest first
+      .populate("createdBy", "name email");
+
+    res.status(200).json({
+      success: true,
+      count: events.length,
+      data: events,
+    });
+  } catch (error) {
+    console.error("Error fetching published events:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error while fetching published events",
+    });
+  }
+};
+
 module.exports = {
   createEvent,
   togglePublished,
@@ -203,4 +223,5 @@ module.exports = {
   getEventById,
   updateEvent,
   deleteEvent,
+  getPublishedEvents,
 };
