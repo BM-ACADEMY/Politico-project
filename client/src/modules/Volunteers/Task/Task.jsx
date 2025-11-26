@@ -1,8 +1,15 @@
-// src/components/Task.jsx → FINAL CLEAN VERSION
+// src/components/Task.jsx
 import React, { useContext, useEffect, useState } from "react";
 import { AuthContext } from "@/modules/Common/context/AuthContext";
 import axiosInstance from "@/modules/Common/axios/axios";
 import { showToast } from "@/modules/Common/toast/customToast";
+
+// shadcn/ui components
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Separator } from "@/components/ui/separator";
+import { Calendar, MapPin, User, Clock } from "lucide-react";
 
 const Task = () => {
   const { user, loading: authLoading } = useContext(AuthContext);
@@ -23,7 +30,6 @@ const Task = () => {
       try {
         setLoading(true);
         const response = await axiosInstance.get("/tasks/my-tasks");
-
         const myTasks = Array.isArray(response.data) ? response.data : [];
         setTasks(myTasks);
 
@@ -44,94 +50,137 @@ const Task = () => {
     fetchMyTasks();
   }, [user, authLoading]);
 
-  // Loading state
+  // Full page loading
   if (authLoading || loading) {
     return (
-      <div className="flex items-center justify-center py-20">
-        <div className="text-lg text-gray-600 animate-pulse">Loading your tasks...</div>
+      <div className="p-6 max-w-7xl mx-auto">
+        <h2 className=" font-bold text-gray-900 mb-8">My Tasks</h2>
+        <div className="grid gap-6 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {[...Array(8)].map((_, i) => (
+            <Card key={i} className="overflow-hidden">
+              <CardHeader className="pb-4">
+                <Skeleton className="h-6 w-3/4 rounded" />
+                <Skeleton className="h-4 w-full mt-3" />
+                <Skeleton className="h-4 w-5/6 mt-2" />
+              </CardHeader>
+              <CardContent>
+                <Skeleton className="h-16 w-full rounded-lg mt-4" />
+                <div className="flex justify-between items-center mt-6">
+                  <Skeleton className="h-8 w-20 rounded-full" />
+                  <Skeleton className="h-4 w-24" />
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
       </div>
     );
   }
 
-  // No tasks state
+  // Empty state
   if (tasks.length === 0) {
     return (
-      <div className="text-center py-16 px-4">
-        <div class="text-2xl md:text-3xl font-semibold text-gray-700 mb-4">
-          No tasks assigned
+      <div className="flex flex-col items-center justify-center py-20 px-4 text-center">
+        <div className="bg-gray-100 rounded-full p-8 mb-6">
+          <Calendar className="w-16 h-16 text-gray-400" />
         </div>
-        <p className="text-gray-500 text-lg max-w-md mx-auto">
-          You have no pending tasks at the moment. Check back later or contact your coordinator!
+        <h3 className="text-2xl md:text-3xl font-bold text-gray-800 mb-3">
+          No Tasks Assigned Yet
+        </h3>
+        <p className="text-gray-500 text-lg max-w-md">
+          You're all caught up! Check back later or reach out to your coordinator for new assignments.
         </p>
       </div>
     );
   }
 
-  // Tasks grid
+  // Main tasks grid
   return (
-    <div className="p-4 md:p-6 max-w-7xl mx-auto">
-      <h2 className="text-2xl md:text-3xl font-bold text-gray-800 mb-8 text-center md:text-left">
-        My Tasks ({tasks.length})
-      </h2>
+    <div className="p-6 max-w-7xl mx-auto">
+      <div className="mb-8">
+        <h2 className="text-3xl font-bold text-gray-900">My Tasks</h2>
+        <p className="text-muted-foreground mt-2">
+          You have <span className="font-semibold text-indigo-600">{tasks.length}</span> active{" "}
+          {tasks.length === 1 ? "task" : "tasks"}
+        </p>
+      </div>
 
       <div className="grid gap-6 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {tasks.map((task) => (
-          <div
+          <Card
             key={task._id}
-            className="bg-white rounded-xl shadow-md hover:shadow-xl transition-all duration-300 border border-gray-100 overflow-hidden flex flex-col h-full"
+            className="overflow-hidden hover:shadow-lg transition-shadow duration-300 border border-gray-200 hover:border-indigo-300"
           >
-            <div className="p-6 grow">
-              <h3 className="text-xl font-bold text-indigo-700 mb-3 line-clamp-2">
-                {task.task_title}
-              </h3>
+            <CardHeader className="pb-4">
+              <div className="flex justify-between items-start">
+                <CardTitle className="text-lg font-semibold text-gray-900 line-clamp-2">
+                  {task.task_title}
+                </CardTitle>
+                <Badge
+                  variant={task.status === "pending" ? "secondary" : "default"}
+                  className={
+                    task.status === "pending"
+                      ? "bg-yellow-100 text-yellow-800 hover:bg-yellow-200"
+                      : "bg-green-100 text-green-800 hover:bg-green-200"
+                  }
+                >
+                  {task.status || "Pending"}
+                </Badge>
+              </div>
+            </CardHeader>
 
-              <p className="text-gray-600 text-sm leading-relaxed mb-5 line-clamp-3">
-                {task.description || "No description provided."}
-              </p>
+            <CardContent className="space-y-4">
+              {task.description && (
+                <p className="text-sm text-gray-600 line-clamp-3">
+                  {task.description}
+                </p>
+              )}
 
               {task.event && (
-                <div className="bg-linear-to-r from-indigo-50 to-purple-50 rounded-lg p-4 mb-5 border border-indigo-100">
-                  <p className="font-semibold text-indigo-800 text-sm">
+                <div className="bg-linear-to-r from-indigo-50 to-purple-50 rounded-lg p-4 border border-indigo-100">
+                  <p className="font-medium text-indigo-900 text-sm">
                     {task.event.eventTitle || "Untitled Event"}
                   </p>
-                  <p className="text-gray-700 text-xs mt-1">
-                    {task.event.date
-                      ? new Date(task.event.date).toLocaleDateString("en-IN", {
-                          day: "2-digit",
-                          month: "short",
-                          year: "numeric",
-                        })
-                      : "No date"}{" "}
-                    • {task.event.time || "Time TBD"}
-                  </p>
-                  <p className="text-gray-600 text-xs mt-1">
-                    Venue: {task.event.venue || "Not specified"}
-                  </p>
+                  <div className="flex items-center gap-4 mt-2 text-xs text-gray-600">
+                    <span className="flex items-center gap-1">
+                      <Calendar className="w-3.5 h-3.5" />
+                      {task.event.date
+                        ? new Date(task.event.date).toLocaleDateString("en-IN", {
+                            day: "2-digit",
+                            month: "short",
+                            year: "numeric",
+                          })
+                        : "No date"}
+                    </span>
+                    {task.event.time && (
+                      <span className="flex items-center gap-1">
+                        <Clock className="w-3.5 h-3.5" />
+                        {task.event.time}
+                      </span>
+                    )}
+                  </div>
+                  {task.event.venue && (
+                    <p className="flex items-center gap-1 text-xs text-gray-600 mt-2">
+                      <MapPin className="w-3.5 h-3.5" />
+                      {task.event.venue}
+                    </p>
+                  )}
                 </div>
               )}
 
-              <div className="text-xs text-gray-500 mt-auto">
-                Assigned by:{" "}
-                <span className="font-medium text-gray-700">
-                  {task.created_by?.name || "Admin"}
-                </span>
-              </div>
-            </div>
+              <Separator />
 
-            <div className="px-6 pb-5">
-              <div className="flex justify-between items-center">
-                <span
-                  className={`px-4 py-2 rounded-full text-xs font-bold uppercase tracking-wider ${
-                    task.status === "pending"
-                      ? "bg-yellow-100 text-yellow-800 border border-yellow-300"
-                      : "bg-green-100 text-green-800 border border-green-300"
-                  }`}
-                >
-                  {task.status || "Pending"}
+              <div className="flex items-center justify-between text-xs text-gray-500">
+                <span className="flex items-center gap-1.5">
+                  <User className="w-4 h-4" />
+                  Assigned by:{" "}
+                  <span className="font-medium text-gray-700">
+                    {task.created_by?.name || "Admin"}
+                  </span>
                 </span>
               </div>
-            </div>
-          </div>
+            </CardContent>
+          </Card>
         ))}
       </div>
     </div>
