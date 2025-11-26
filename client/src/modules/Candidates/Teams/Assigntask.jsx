@@ -22,7 +22,7 @@ const Assigntask = ({ refreshKey }) => {
   const fetchTasks = async () => {
     try {
       setLoading(true);
-      const res = await axiosInstance.get('/tasks');
+      const res = await axiosInstance.get('/tasks/get-all-task');
       setPendingTasks(res.data || []);
     } catch (err) {
       showToast('error', 'Failed to load tasks');

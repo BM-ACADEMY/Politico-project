@@ -39,28 +39,28 @@ const createVolunteer = async (req, res) => {
     }
 
     // Create User → Let pre("save") hook hash it (DO NOT pass hashed password)
-    const newUser = await User.create({
-      name,
-      email,
-      phone: phoneNumber,
-      password: password, // ← Plain password → gets hashed by pre("save")
-      role_id: volunteerRole._id,
-      created_by: req.user.id,
-    });
-
+ const newUser = await User.create({
+  name,
+  email,
+  phone: phoneNumber,
+  password: password,
+  role_id: volunteerRole._id,
+  created_by: req.user.id,
+});
     // Hash password for Volunteer
     const hashedPassword = await bcrypt.hash(password, 10);
 
     // Create Volunteer
-    const newVolunteer = await Volunteer.create({
-      name,
-      email,
-      password: hashedPassword, // ← Already hashed
-      ward,
-      localities,
-      phoneNumber,
-      created_by: req.user.id,
-    });
+ const newVolunteer = await Volunteer.create({
+  name,
+  email,
+  password: hashedPassword,
+  ward,
+  localities,
+  phoneNumber,
+  created_by: req.user.id,
+  user_id: newUser._id   // ← THIS LINKS THEM FOREVER
+});
 
     res.status(201).json({
       success: true,

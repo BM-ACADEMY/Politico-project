@@ -117,7 +117,47 @@ const getTasks = async (req, res) => {
   }
 };
 
+
+const getMyTasks = async (req, res) => {
+  try {
+    const loggedInUserId = req.user.id;
+
+    // 1. Find the volunteer linked to this user
+    const volunteer = await Volunteer.findOne({ user_id: loggedInUserId });
+    if (!volunteer) {
+      return res.status(200).json([]); // Not a volunteer → empty array (safe)
+    }
+
+    // 2. Find ALL pending tasks assigned to this volunteer
+    const tasks = await Task.find({
+      assign_to: volunteer._id,
+      status: "pending"
+    })
+      .populate({
+        path: "event",
+        select: "eventTitle date time venue status eventType targetAttendance description"
+      })
+      .populate({
+        path: "created_by",
+        select: "name email"
+      })
+      .populate({
+        path: "assign_to", // ← ADD THIS (optional but safe)
+        select: "name email ward"
+      })
+      .sort({ createdAt: -1 });
+
+    // Debug log (remove in production)
+    console.log(`Volunteer ${volunteer._id} has ${tasks.length} pending tasks`);
+
+    res.status(200).json(tasks);
+  } catch (error) {
+    console.error("getMyTasks Error:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+};
 module.exports = {
   createTask,
   getTasks,
+  getMyTasks,
 };

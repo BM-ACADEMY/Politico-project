@@ -80,7 +80,7 @@ const Dashboard = () => {
                     <img
                       src={banner.image}
                       alt={`Banner ${index + 1}`}
-                      className="w-full h-[280px] sm:h-[320px] md:h-[400px] lg:h-[520px] object-cover"
+                      className="w-full h-[280px] sm:h-80 md:h-[400px] lg:h-[520px] object-cover"
                     />
                     {/* Gradient Overlay */}
                     
