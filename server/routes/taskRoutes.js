@@ -1,7 +1,8 @@
 // routes/taskRoutes.js (New Routes)
 const express = require("express");
-const { createTask, getTasks, getMyTasks } = require("../controllers/taskController");
+const { createTask, getTasks, getMyTasks,updateMyTask } = require("../controllers/taskController");
 const authMiddleware = require("../middleware/auth");
+const upload = require("../middleware/upload");
 
 const router = express.Router();
 
@@ -9,4 +10,5 @@ const router = express.Router();
 router.post("/", authMiddleware, createTask);
 router.get("/get-all-task", authMiddleware, getTasks);
 router.get("/my-tasks", authMiddleware, getMyTasks); 
+router.put("/my-tasks/:taskId", authMiddleware, upload.array("attachments", 10), updateMyTask);
 module.exports = router;

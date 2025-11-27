@@ -1,4 +1,4 @@
-// Updated models/Task.js - Added 'event' field to reference Event
+// models/Task.js
 const mongoose = require("mongoose");
 
 const taskSchema = new mongoose.Schema(
@@ -14,24 +14,47 @@ const taskSchema = new mongoose.Schema(
     },
     event: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "Event", // References the Event model
-      required: true, // Made required as per frontend validation
+      ref: "Event",
+      required: true,
     },
     assign_to: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "Volunteer", // References the Volunteer model
+      ref: "Volunteer",
       required: true,
     },
     created_by: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "User", // Reference to Admin or creator
+      ref: "User",
       required: true,
     },
     status: {
       type: String,
-      enum: ['pending', 'completed'],
-      default: 'pending',
+      enum: ["pending","in process", "on hold", "completed"],
+      default: "pending",
     },
+
+    // New field: Volunteer can add their own description/report after completing the task
+    volunteer_description: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+
+    // New field: Multiple attachment URLs for attachments (photos, PDFs, etc.)
+    // Each attachment also stores the upload date
+    attachments: [
+      {
+        url: {
+          type: String,
+          required: true,
+          trim: true,
+        },
+        uploadedAt: {
+          type: Date,
+          default: Date.now,
+        },
+      },
+    ],
   },
   { timestamps: true }
 );

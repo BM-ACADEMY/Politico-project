@@ -156,8 +156,54 @@ const getMyTasks = async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 };
+
+
+const updateMyTask = async (req, res) => {
+  try {
+    const { taskId } = req.params;
+    const { status, volunteer_description } = req.body;
+    const files = req.files; // multer
+
+    const volunteer = await Volunteer.findOne({ user_id: req.user.id });
+    if (!volunteer) {
+      return res.status(403).json({ message: "Only volunteers can update tasks." });
+    }
+
+    const task = await Task.findOne({ _id: taskId, assign_to: volunteer._id });
+    if (!task) {
+      return res.status(404).json({ message: "Task not found or not assigned to you." });
+    }
+
+    // Update fields
+    if (status) task.status = status;
+    if (volunteer_description !== undefined) task.volunteer_description = volunteer_description;
+
+    // Handle file uploads
+    if (files && files.length > 0) {
+      const baseUrl = `${req.protocol}://${req.get("host")}`;
+      files.forEach((file) => {
+        const fileUrl = `${baseUrl}/uploads/task_attachments/${file.filename}`;
+        task.attachments.push({ url: fileUrl });
+      });
+    }
+
+    await task.save();
+
+    await task.populate([
+      { path: "event", select: "eventTitle date time venue status eventType targetAttendance description" },
+      { path: "created_by", select: "name email" }
+    ]);
+
+    res.status(200).json({ success: true, message: "Task updated successfully", task });
+  } catch (error) {
+    console.error("updateMyTask Error:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
 module.exports = {
   createTask,
   getTasks,
   getMyTasks,
+  updateMyTask   // ← ADD THIS
 };
