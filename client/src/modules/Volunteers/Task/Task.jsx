@@ -4,390 +4,523 @@ import { AuthContext } from "@/modules/Common/context/AuthContext";
 import axiosInstance from "@/modules/Common/axios/axios";
 import { showToast } from "@/modules/Common/toast/customToast";
 
-// shadcn/ui components
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Separator } from "@/components/ui/separator";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import Zoom from "react-medium-image-zoom";
+import "react-medium-image-zoom/dist/styles.css";
+
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Input } from "@/components/ui/input";
-import { Calendar, MapPin, User, Clock, Paperclip, X, FileText, Image, Video, Music, Link2 } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
 
-const statusOptions = [
-  { value: "pending", label: "Pending", color: "bg-yellow-100 text-yellow-800" },
-  { value: "in process", label: "In Process", color: "bg-blue-100 text-blue-800" },
-  { value: "on hold", label: "On Hold", color: "bg-orange-100 text-orange-800" },
-  { value: "completed", label: "Completed", color: "bg-green-100 text-green-800" },
-];
+import {
+  Calendar,
+  MapPin,
+  Clock,
+  User,
+  Paperclip,
+  FileText,
+  Image as Img,
+  Video,
+  Music,
+  X,
+  Plus,
+  Pencil,
+  Search,
+  CheckCircle2,
+  PauseCircle,
+  ArrowRightCircle,
+  Timer,
+  Trash2,
+  Link2,
+  ExternalLink,
+} from "lucide-react";
+
+// STATUS CONFIG
+const statusConfig = {
+  pending: { label: "Pending", icon: Timer, color: "bg-amber-100 text-amber-800 border-amber-300" },
+  "in process": { label: "In Progress", icon: ArrowRightCircle, color: "bg-blue-100 text-blue-800 border-blue-300" },
+  "on hold": { label: "On Hold", icon: PauseCircle, color: "bg-orange-100 text-orange-800 border-orange-300" },
+  completed: { label: "Completed", icon: CheckCircle2, color: "bg-emerald-100 text-emerald-800 border-emerald-300" },
+};
+
+// FILE ICON UTILITY
+const getFileIcon = (url) => {
+  const ext = (url || "").split(".").pop()?.toLowerCase() || "";
+  if (["jpg", "jpeg", "png", "gif", "webp"].includes(ext)) return <Img className="w-6 h-6 text-blue-600" />;
+  if (["mp4", "webm", "mov", "avi"].includes(ext)) return <Video className="w-6 h-6 text-purple-600" />;
+  if (["mp3", "wav", "ogg"].includes(ext)) return <Music className="w-6 h-6 text-green-600" />;
+  if (ext === "pdf") return <FileText className="w-6 h-6 text-red-600" />;
+  return <Link2 className="w-6 h-6 text-indigo-600" />;
+};
+
+// TASK CARD
+const TaskCard = ({ task, onClick }) => {
+  const status = statusConfig[task.status] || statusConfig.pending;
+  const StatusIcon = status.icon;
+
+  return (
+    <Card
+      onClick={onClick}
+      className="group rounded-xl border border-gray-200 bg-white hover:shadow-xl transition cursor-pointer 
+                 p-4 flex flex-col justify-between w-[310px] h-[260px] overflow-hidden"
+    >
+      <div className="space-y-2 overflow-y-auto pr-1 scrollbar-thin">
+        <h3 className="text-base font-semibold text-gray-900 line-clamp-2">{task.task_title}</h3>
+        <p className="text-xs text-gray-600 line-clamp-3">{task.description || "No description"}</p>
+
+        {task.event && (
+          <div className="bg-indigo-50 rounded-lg p-2 border border-indigo-100 space-y-1 text-xs">
+            <p className="font-semibold text-indigo-900 text-[11px]">{task.event.eventTitle}</p>
+            <p className="flex items-center gap-1 text-indigo-700 text-[11px]">
+              <Calendar className="w-3 h-3" />
+              {new Date(task.event.date).toLocaleDateString("en-IN")}
+            </p>
+            {task.event.time && (
+              <p className="flex items-center gap-1 text-indigo-700 text-[11px]">
+                <Clock className="w-3 h-3" />
+                {task.event.time}
+              </p>
+            )}
+            {task.event.venue && (
+              <p className="flex items-center gap-1 text-indigo-700 text-[11px]">
+                <MapPin className="w-3 h-3" /> {task.event.venue}
+              </p>
+            )}
+          </div>
+        )}
+      </div>
+
+      <div className="flex items-center justify-between mt-2">
+        <span className="flex items-center gap-1 text-[11px] text-gray-500">
+          <User className="w-3 h-3" /> {task.created_by?.name || "Admin"}
+        </span>
+        <Badge className={`flex items-center gap-1 px-2 py-0.5 text-[10px] border ${status.color}`}>
+          <StatusIcon className="w-3 h-3" />
+          {status.label}
+        </Badge>
+      </div>
+    </Card>
+  );
+};
 
 const Task = () => {
   const { user, loading: authLoading } = useContext(AuthContext);
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [open, setOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState(null);
+  const [viewOpen, setViewOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+
   const [status, setStatus] = useState("");
   const [volunteerDescription, setVolunteerDescription] = useState("");
   const [attachments, setAttachments] = useState([]);
+  const [linkInput, setLinkInput] = useState("");
   const [uploading, setUploading] = useState(false);
+
   const fileInputRef = useRef(null);
+  const [filter, setFilter] = useState("");
+  const [search, setSearch] = useState("");
 
   useEffect(() => {
-    const fetchMyTasks = async () => {
-      if (authLoading) return;
-      if (!user) {
-        setTasks([]);
-        setLoading(false);
-        showToast("error", "You must be logged in to view tasks.");
-        return;
-      }
-
+    const fetchTasks = async () => {
+      if (authLoading || !user) return setLoading(false);
       try {
         setLoading(true);
-        const response = await axiosInstance.get("/tasks/my-tasks");
-        const myTasks = Array.isArray(response.data) ? response.data : [];
-        setTasks(myTasks);
-        if (myTasks.length === 0) {
-          showToast("info", "No tasks assigned yet. Check back soon!");
-        }
-      } catch (err) {
-        console.error("Error fetching my tasks:", err);
-        const errorMessage = err.response?.data?.message || "Failed to load your tasks.";
-        showToast("error", errorMessage);
-        setTasks([]);
+        const res = await axiosInstance.get("/tasks/my-tasks");
+        setTasks(Array.isArray(res.data) ? res.data : []);
+      } catch (e) {
+        showToast("error", "Failed to load tasks");
       } finally {
         setLoading(false);
       }
     };
-
-    fetchMyTasks();
+    fetchTasks();
   }, [user, authLoading]);
 
-  const openDialog = (task) => {
+  const openViewDialog = (task) => {
     setSelectedTask(task);
-    setStatus(task.status || "pending");
-    setVolunteerDescription(task.volunteer_description || "");
-    setAttachments(task.attachments || []);
-    setOpen(true);
+    setViewOpen(true);
+  };
+
+  const openEditDialog = () => {
+    if (!selectedTask) return;
+    setStatus(selectedTask.status || "pending");
+    setVolunteerDescription(selectedTask.volunteer_description || "");
+    setAttachments(
+      (selectedTask.attachments || []).map((a) => ({ ...a, isExisting: true }))
+    );
+    setViewOpen(false);
+    setEditOpen(true);
   };
 
   const handleFileSelect = (e) => {
-    const files = Array.from(e.target.files);
-    setAttachments(prev => [...prev, ...files.map(file => ({
+    const files = Array.from(e.target.files || []);
+    const mapped = files.map((file) => ({
       file,
       url: URL.createObjectURL(file),
       name: file.name,
-      type: file.type,
-      isNew: true
-    }))]);
+      isNew: true,
+    }));
+    setAttachments((prev) => [...prev, ...mapped]);
     e.target.value = "";
   };
 
+  const addLink = () => {
+    if (!linkInput.trim()) return;
+    setAttachments((prev) => [
+      ...prev,
+      { url: linkInput.trim(), name: linkInput.trim(), isLink: true, isNew: true },
+    ]);
+    setLinkInput("");
+  };
+
   const removeAttachment = (index) => {
-    setAttachments(prev => prev.filter((_, i) => i !== index));
+    setAttachments((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const deleteAttachmentFromServer = async (attachmentUrl) => {
+    try {
+      await axiosInstance.delete(`/tasks/my-tasks/attachment/${selectedTask._id}`, {
+        data: { attachmentUrl },
+      });
+    } catch (err) {
+      showToast("error", "Failed to delete attachment");
+    }
   };
 
   const handleSubmit = async () => {
     if (!selectedTask) return;
-
     setUploading(true);
     try {
       const formData = new FormData();
       formData.append("status", status);
       formData.append("volunteer_description", volunteerDescription);
 
-      // Append only new files
-      attachments.forEach((att) => {
-        if (att.isNew && att.file) {
-          formData.append("attachments", att.file);
-        }
-      });
+      const newFiles = attachments.filter((a) => a.isNew && a.file);
+      const newLinks = attachments.filter((a) => a.isNew && a.isLink);
+      const existing = attachments.filter((a) => a.isExisting);
 
-      const response = await axiosInstance.put(`/tasks/my-tasks/${selectedTask._id}`, formData, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
+      newFiles.forEach((a) => formData.append("attachments", a.file));
+      newLinks.forEach((a) => formData.append("attachmentLinks", a.url));
+      existing.forEach((a) => formData.append("existingAttachments", a.url));
 
-      // Update the task in local state
-      setTasks(prev => prev.map(t => t._id === selectedTask._id ? response.data.task : t));
+      const res = await axiosInstance.put(
+        `/tasks/my-tasks/${selectedTask._id}`,
+        formData,
+        { headers: { "Content-Type": "multipart/form-data" } }
+      );
 
+      setTasks((prev) =>
+        prev.map((t) => (t._id === selectedTask._id ? res.data.task : t))
+      );
       showToast("success", "Task updated successfully!");
-      setOpen(false);
-    } catch (err) {
-      console.error(err);
-      showToast("error", err.response?.data?.message || "Failed to update task");
+      setEditOpen(false);
+    } catch (e) {
+      console.error(e);
+      showToast("error", "Failed to update task");
     } finally {
       setUploading(false);
     }
   };
 
-  // Loading & Empty States (unchanged)
-  if (authLoading || loading) {
-    return (
-      <div className="p-6 max-w-7xl mx-auto">
-        <h2 className="font-bold text-gray-900 mb-8">My Tasks</h2>
-        <div className="grid gap-6 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {[...Array(8)].map((_, i) => (
-            <Card key={i} className="overflow-hidden">
-              <CardHeader className="pb-4">
-                <Skeleton className="h-6 w-3/4 rounded" />
-                <Skeleton className="h-4 w-full mt-3" />
-                <Skeleton className="h-4 w-5/6 mt-2" />
-              </CardHeader>
-              <CardContent>
-                <Skeleton className="h-16 w-full rounded-lg mt-4" />
-                <div className="flex justify-between items-center mt-6">
-                  <Skeleton className="h-8 w-20 rounded-full" />
-                  <Skeleton className="h-4 w-24" />
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      </div>
+  const visibleTasks = tasks
+    .filter((t) => (filter ? t.status === filter : true))
+    .filter((t) =>
+      search
+        ? `${t.task_title} ${t.description}`.toLowerCase().includes(search.toLowerCase())
+        : true
     );
-  }
 
-  if (tasks.length === 0) {
+  if (authLoading || loading)
     return (
-      <div className="flex flex-col items-center justify-center py-20 px-4 text-center">
-        <div className="bg-gray-100 rounded-full p-8 mb-6">
-          <Calendar className="w-16 h-16 text-gray-400" />
-        </div>
-        <h3 className="text-2xl md:text-3xl font-bold text-gray-800 mb-3">
-          No Tasks Assigned Yet
-        </h3>
-        <p className="text-gray-500 text-lg max-w-md">
-          You're all caught up! Check back later or reach out to your coordinator for new assignments.
-        </p>
+      <div className="p-10 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+        {[...Array(8)].map((_, i) => (
+          <Card key={i} className="p-4">
+            <Skeleton className="h-40 w-full rounded-xl" />
+          </Card>
+        ))}
       </div>
     );
-  }
 
   return (
-    <>
-      <div className="p-6 max-w-7xl mx-auto">
-        <div className="mb-8">
-          <h2 className="text-3xl font-bold text-gray-900">My Tasks</h2>
-          <p className="text-muted-foreground mt-2">
-            You have <span className="font-semibold text-indigo-600">{tasks.length}</span> active{" "}
-            {tasks.length === 1 ? "task" : "tasks"}
-          </p>
+    <main className="p-6">
+      <div className="max-w-7xl mx-auto space-y-10">
+        {/* HEADER */}
+        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">My Tasks</h1>
+            <p className="text-gray-600 text-sm">{tasks.length} tasks assigned</p>
+          </div>
+          <div className="flex items-center gap-3 w-full md:w-auto">
+            <div className="relative flex-1 md:flex-none">
+              <Input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search tasks..."
+                className="pr-10"
+              />
+              <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            </div>
+            <select
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+              className="rounded-xl border-gray-300 p-2 text-sm"
+            >
+              <option value="">All</option>
+              {Object.entries(statusConfig).map(([key, v]) => (
+                <option key={key} value={key}>{v.label}</option>
+              ))}
+            </select>
+          </div>
         </div>
 
-        <div className="grid gap-6 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {tasks.map((task) => (
-            <Card
-              key={task._id}
-              className="overflow-hidden hover:shadow-lg transition-shadow duration-300 border border-gray-200 hover:border-indigo-300 cursor-pointer"
-              onClick={() => openDialog(task)}
-            >
-              <CardHeader className="pb-4">
-                <div className="flex justify-between items-start">
-                  <CardTitle className="text-lg font-semibold text-gray-900 line-clamp-2">
-                    {task.task_title}
-                  </CardTitle>
-                  <Badge
-                    variant={task.status === "pending" ? "secondary" : "default"}
-                    className={
-                      task.status === "pending"
-                        ? "bg-yellow-100 text-yellow-800 hover:bg-yellow-200"
-                        : "bg-green-100 text-green-800 hover:bg-green-200"
-                    }
-                  >
-                    {task.status || "Pending"}
-                  </Badge>
-                </div>
-              </CardHeader>
-
-              <CardContent className="space-y-4">
-                {task.description && (
-                  <p className="text-sm text-gray-600 line-clamp-3">
-                    {task.description}
-                  </p>
-                )}
-
-                {task.event && (
-                  <div className="bg-linear-to-r from-indigo-50 to-purple-50 rounded-lg p-4 border border-indigo-100">
-                    <p className="font-medium text-indigo-900 text-sm">
-                      {task.event.eventTitle || "Untitled Event"}
-                    </p>
-                    <div className="flex items-center gap-4 mt-2 text-xs text-gray-600">
-                      <span className="flex items-center gap-1">
-                        <Calendar className="w-3.5 h-3.5" />
-                        {task.event.date
-                          ? new Date(task.event.date).toLocaleDateString("en-IN", {
-                              day: "2-digit",
-                              month: "short",
-                              year: "numeric",
-                            })
-                          : "No date"}
-                      </span>
-                      {task.event.time && (
-                        <span className="flex items-center gap-1">
-                          <Clock className="w-3.5 h-3.5" />
-                          {task.event.time}
-                        </span>
-                      )}
-                    </div>
-                    {task.event.venue && (
-                      <p className="flex items-center gap-1 text-xs text-gray-600 mt-2">
-                        <MapPin className="w-3.5 h-3.5" />
-                        {task.event.venue}
-                      </p>
-                    )}
-                  </div>
-                )}
-
-                <Separator />
-
-                <div className="flex items-center justify-between text-xs text-gray-500">
-                  <span className="flex items-center gap-1.5">
-                    <User className="w-4 h-4" />
-                    Assigned by:{" "}
-                    <span className="font-medium text-gray-700">
-                      {task.created_by?.name || "Admin"}
-                    </span>
-                  </span>
-                </div>
-              </CardContent>
-            </Card>
+        {/* GRID */}
+        <div className="grid gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+          {visibleTasks.map((task) => (
+            <TaskCard key={task._id} task={task} onClick={() => openViewDialog(task)} />
           ))}
         </div>
       </div>
 
-      {/* Task Detail Dialog */}
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="text-2xl">{selectedTask?.task_title}</DialogTitle>
+      {/* VIEW DIALOG */}
+      <Dialog open={viewOpen} onOpenChange={setViewOpen}>
+        <DialogContent className="max-w-xl p-4 rounded-lg">
+          <DialogHeader className="mb-2">
+            <DialogTitle className="text-lg font-bold leading-tight">
+              {selectedTask?.task_title}
+            </DialogTitle>
+            <p className="text-[11px] text-gray-600">
+              Assigned by {selectedTask?.created_by?.name}
+            </p>
           </DialogHeader>
 
-          {selectedTask && (
-            <div className="space-y-6 mt-4">
-              {/* Status */}
-              <div>
-                <Label className="text-base font-semibold">Status</Label>
-                <RadioGroup value={status} onValueChange={setStatus} className="mt-3">
-                  <div className="grid grid-cols-2 gap-3">
-                    {statusOptions.map((opt) => (
-                      <div key={opt.value} className="flex items-center space-x-2">
-                        <RadioGroupItem value={opt.value} id={opt.value} />
-                        <Label htmlFor={opt.value} className={`cursor-pointer px-4 py-2 rounded-full text-sm font-medium ${opt.color}`}>
-                          {opt.label}
-                        </Label>
-                      </div>
-                    ))}
-                  </div>
-                </RadioGroup>
-              </div>
+          <div className="max-h-[65vh] overflow-y-auto space-y-4 pr-1 scrollbar-thin">
+            <div className="flex justify-between items-center mb-1">
+              <Button size="icon" variant="outline" onClick={openEditDialog} className="rounded-full h-7 w-7">
+                <Pencil className="w-3 h-3" />
+              </Button>
+              <Badge className={`px-2 py-0.5 text-[10px] border ${statusConfig[selectedTask?.status]?.color}`}>
+                {statusConfig[selectedTask?.status]?.label}
+              </Badge>
+            </div>
 
-              {/* Task Description (from admin) */}
+            <div>
+              <h3 className="font-semibold text-sm mb-1">Description</h3>
+              <p className="bg-gray-50 p-3 text-[12px] rounded-lg border whitespace-pre-wrap">
+                {selectedTask?.description}
+              </p>
+            </div>
+
+            {selectedTask?.event && (
+              <div className="bg-indigo-50 p-3 rounded-lg border text-[12px] space-y-1">
+                <h3 className="font-semibold text-indigo-900 text-sm">Event Details</h3>
+                <p className="flex items-center gap-1 text-indigo-700">
+                  <Calendar className="w-3 h-3" />
+                  {new Date(selectedTask.event.date).toLocaleDateString("en-IN")}
+                </p>
+                {selectedTask.event.time && (
+                  <p className="flex items-center gap-1 text-indigo-700">
+                    <Clock className="w-3 h-3" /> {selectedTask.event.time}
+                  </p>
+                )}
+                {selectedTask.event.venue && (
+                  <p className="flex items-center gap-1 text-indigo-700">
+                    <MapPin className="w-3 h-3" /> {selectedTask.event.venue}
+                  </p>
+                )}
+              </div>
+            )}
+
+            {selectedTask?.volunteer_description && (
               <div>
-                <Label className="text-base font-semibold">Task Description</Label>
-                <p className="mt-2 text-gray-700 bg-gray-50 p-4 rounded-lg">
-                  {selectedTask.description || "No description provided."}
+                <h3 className="font-semibold text-sm mb-1">Your Report</h3>
+                <p className="bg-blue-50 p-3 text-[12px] rounded-lg border whitespace-pre-wrap">
+                  {selectedTask.volunteer_description}
                 </p>
               </div>
+            )}
 
-              {/* Event Details */}
-              {selectedTask.event && (
-                <div className="bg-indigo-50 rounded-lg p-5 border border-indigo-200">
-                  <h4 className="font-semibold text-indigo-900 mb-3">Event Details</h4>
-                  <p className="font-medium">{selectedTask.event.eventTitle}</p>
-                  <div className="grid grid-cols-2 gap-2 text-sm text-gray-700 mt-2">
-                    <span className="flex items-center gap-1"><Calendar className="w-4 h-4" /> {new Date(selectedTask.event.date).toLocaleDateString("en-IN")}</span>
-                    <span className="flex items-center gap-1"><Clock className="w-4 h-4" /> {selectedTask.event.time || "No time"}</span>
-                    <span className="flex items-center gap-1"><MapPin className="w-4 h-4" /> {selectedTask.event.venue || "No venue"}</span>
-                    <span>Type: {selectedTask.event.eventType || "N/A"}</span>
-                  </div>
-                  {selectedTask.event.description && (
-                    <p className="mt-3 text-sm text-gray-600">{selectedTask.event.description}</p>
-                  )}
-                </div>
-              )}
-
-              {/* Volunteer Description */}
+            {/* BEAUTIFUL ATTACHMENTS DISPLAY */}
+            {selectedTask?.attachments?.length > 0 && (
               <div>
-                <Label htmlFor="vol-desc" className="text-base font-semibold">Your Report / Notes</Label>
-                <Textarea
-                  id="vol-desc"
-                  placeholder="Write about your progress, challenges, or completion details..."
-                  value={volunteerDescription}
-                  onChange={(e) => setVolunteerDescription(e.target.value)}
-                  className="mt-2 min-h-32"
-                />
-              </div>
+                <h3 className="font-semibold text-sm mb-2">
+                  Attachments ({selectedTask.attachments.length})
+                </h3>
+                <div className="grid grid-cols-2 gap-3">
+                  {selectedTask.attachments.map((att, i) => {
+                    const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(att.url);
+                    const isVideo = /\.(mp4|webm|mov|avi)$/i.test(att.url);
+                    const filename = att.url.split("/").pop().split("?")[0];
 
-              {/* Attachments */}
-              <div>
-                <Label className="text-base font-semibold">Attachments</Label>
-                <div className="mt-2">
-                  <Input
-                    ref={fileInputRef}
-                    type="file"
-                    multiple
-                    accept="image/*,video/*,audio/*,application/pdf,.doc,.docx,.txt"
-                    onChange={handleFileSelect}
-                    className="hidden"
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => fileInputRef.current?.click()}
-                    className="mb-3"
-                  >
-                    <Paperclip className="w-4 h-4 mr-2" /> Add Files or Links
-                  </Button>
-
-                  <div className="space-y-2">
-                    {attachments.map((att, i) => (
-                      <div key={i} className="flex items-center gap-3 p-3 border rounded-lg bg-gray-50">
-                        {att.isNew ? (
-                          <>
-                            {att.type.startsWith("image/") && <Image className="w-5 h-5 text-blue-600" />}
-                            {att.type.startsWith("video/") && <Video className="w-5 h-5 text-purple-600" />}
-                            {att.type.startsWith("audio/") && <Music className="w-5 h-5 text-green-600" />}
-                            {att.type.includes("pdf") && <FileText className="w-5 h-5 text-red-600" />}
-                            {!att.type.startsWith("image/") && !att.type.startsWith("video/") && !att.type.startsWith("audio/") && !att.type.includes("pdf") && <FileText className="w-5 h-5" />}
-                            <span className="flex-1 text-sm">{att.name}</span>
-                          </>
+                    return (
+                      <div
+                        key={i}
+                        className="border rounded-lg overflow-hidden bg-white shadow-sm hover:shadow-md transition-all"
+                      >
+                        {isImage ? (
+                          <Zoom>
+                            <img
+                              src={att.url}
+                              alt="attachment"
+                              className="w-full h-32 object-cover"
+                            />
+                          </Zoom>
+                        ) : isVideo ? (
+                          <video controls className="w-full h-32 object-cover bg-black">
+                            <source src={att.url} />
+                            Your browser does not support video.
+                          </video>
                         ) : (
-                          <>
-                            <a href={att.url} target="_blank" rel="noopener noreferrer" className="flex-1 text-sm text-blue-600 hover:underline">
-                              {att.url.split("/").pop()}
-                            </a>
-                          </>
+                          <a
+                            href={att.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex flex-col items-center justify-center h-32 p-4 text-center hover:bg-gray-50 transition"
+                          >
+                            {getFileIcon(att.url)}
+                            <p className="text-xs font-medium text-blue-600 underline mt-2 line-clamp-2">
+                              {filename.length > 25 ? filename.slice(0, 25) + "..." : filename}
+                            </p>
+                            <p className="text-[10px] text-gray-500 flex items-center gap-1 mt-1">
+                              <ExternalLink className="w-3 h-3" /> Open Link
+                            </p>
+                          </a>
                         )}
-                        <Button size="sm" variant="ghost" onClick={() => removeAttachment(i)}>
-                          <X className="w-4 h-4" />
-                        </Button>
                       </div>
-                    ))}
-                    {attachments.length === 0 && (
-                      <p className="text-sm text-gray-500 italic">No attachments yet</p>
-                    )}
-                  </div>
+                    );
+                  })}
                 </div>
               </div>
-
-              {/* Submit */}
-              <div className="flex justify-end gap-3 pt-4">
-                <Button variant="outline" onClick={() => setOpen(false)}>
-                  Cancel
-                </Button>
-                <Button onClick={handleSubmit} disabled={uploading}>
-                  {uploading ? "Saving..." : "Save Changes"}
-                </Button>
-              </div>
-            </div>
-          )}
+            )}
+          </div>
         </DialogContent>
       </Dialog>
-    </>
+
+      {/* EDIT DIALOG */}
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent className="max-w-xl p-4 rounded-lg">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-semibold">Update Task</DialogTitle>
+          </DialogHeader>
+
+          <div className="max-h-[65vh] overflow-y-auto space-y-5 pr-1 scrollbar-thin">
+            {/* STATUS */}
+            <div>
+              <h3 className="font-semibold text-sm mb-1">Status</h3>
+              <RadioGroup value={status} onValueChange={setStatus} className="grid grid-cols-2 gap-2">
+                {Object.entries(statusConfig).map(([v, cfg]) => (
+                  <label
+                    key={v}
+                    className={`flex items-center gap-2 p-2 rounded-lg border cursor-pointer text-[12px] ${
+                      status === v ? cfg.color : "bg-white"
+                    }`}
+                  >
+                    <RadioGroupItem value={v} />
+                    <cfg.icon className="w-3 h-3" />
+                    {cfg.label}
+                  </label>
+                ))}
+              </RadioGroup>
+            </div>
+
+            {/* REPORT */}
+            <div>
+              <Label className="text-sm">Your Report / Notes</Label>
+              <Textarea
+                value={volunteerDescription}
+                onChange={(e) => setVolunteerDescription(e.target.value)}
+                className="mt-1 text-sm"
+                rows={4}
+                placeholder="Write your completion report, observations, challenges faced..."
+              />
+            </div>
+
+            {/* ATTACHMENTS */}
+            <div>
+              <Label className="text-sm">Attachments</Label>
+              <div className="flex items-center gap-2 mt-2">
+                <Button variant="outline" onClick={() => fileInputRef.current?.click()} className="rounded-lg h-8 text-xs">
+                  <Paperclip className="w-3 h-3 mr-1" /> Upload Files
+                </Button>
+                <input ref={fileInputRef} type="file" multiple className="hidden" onChange={handleFileSelect} />
+
+                <Input
+                  placeholder="https://drive.google.com/... or any link"
+                  value={linkInput}
+                  onChange={(e) => setLinkInput(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && addLink()}
+                  className="h-8 text-xs"
+                />
+                <Button size="icon" onClick={addLink} className="rounded-lg h-8 w-8">
+                  <Plus className="w-3 h-3" />
+                </Button>
+              </div>
+
+              <div className="grid grid-cols-3 gap-3 mt-3">
+                {attachments.map((att, i) => (
+                  <div key={i} className="relative border p-2 rounded-lg bg-white group">
+                    {att.url.match(/\.(jpg|jpeg|png|webp|gif)$/i) ? (
+                      <Zoom>
+                        <img src={att.url} className="rounded-md h-20 w-full object-cover" alt="preview" />
+                      </Zoom>
+                    ) : (
+                      <div className="flex flex-col items-center gap-1 text-center">
+                        {getFileIcon(att.url)}
+                        <p className="text-[10px] truncate w-full">{att.name || att.url.split("/").pop()}</p>
+                      </div>
+                    )}
+
+                    <button
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        if (att.isExisting || (att.isLink && !att.isNew)) {
+                          await deleteAttachmentFromServer(att.url);
+                        }
+                        removeAttachment(i);
+                      }}
+                      className="absolute top-1 right-1 bg-red-500 text-white p-1.5 rounded-full opacity-0 group-hover:opacity-100 transition hover:bg-red-600"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <DialogFooter className="mt-4">
+              <Button variant="outline" onClick={() => setEditOpen(false)}>
+                Cancel
+              </Button>
+              <Button
+                onClick={handleSubmit}
+                disabled={uploading}
+                className="bg-linear-to-r from-indigo-600 to-purple-600 text-white hover:from-indigo-700 hover:to-purple-700"
+              >
+                {uploading ? "Saving..." : "Save Changes"}
+              </Button>
+            </DialogFooter>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </main>
   );
 };
 

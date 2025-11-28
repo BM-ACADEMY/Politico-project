@@ -4,6 +4,8 @@ const Volunteer = require("../models/Volunteer");
 const User = require("../models/usermodel");
 const Role = require("../models/role");
 const Event = require("../models/Eventmodel"); // Added import for Event
+const fs = require("fs");
+const path = require("path");
 
 const createTask = async (req, res) => {
   try {
@@ -117,7 +119,6 @@ const getTasks = async (req, res) => {
   }
 };
 
-
 const getMyTasks = async (req, res) => {
   try {
     const loggedInUserId = req.user.id;
@@ -125,13 +126,13 @@ const getMyTasks = async (req, res) => {
     // 1. Find the volunteer linked to this user
     const volunteer = await Volunteer.findOne({ user_id: loggedInUserId });
     if (!volunteer) {
-      return res.status(200).json([]); // Not a volunteer → empty array (safe)
+      return res.status(200).json([]); // Not a volunteer → return empty array
     }
 
-    // 2. Find ALL pending tasks assigned to this volunteer
+    // 2. Find ALL tasks assigned to this volunteer (any status)
     const tasks = await Task.find({
-      assign_to: volunteer._id,
-      status: "pending"
+      assign_to: volunteer._id
+      // Removed: status: "pending" → now returns all statuses
     })
       .populate({
         path: "event",
@@ -142,62 +143,113 @@ const getMyTasks = async (req, res) => {
         select: "name email"
       })
       .populate({
-        path: "assign_to", // ← ADD THIS (optional but safe)
-        select: "name email ward"
+        path: "assign_to",
+        select: "name email",
+        populate: {
+          path: "ward",
+          select: "ward_name ward_number"
+        }
       })
       .sort({ createdAt: -1 });
-
-    // Debug log (remove in production)
-    console.log(`Volunteer ${volunteer._id} has ${tasks.length} pending tasks`);
 
     res.status(200).json(tasks);
   } catch (error) {
     console.error("getMyTasks Error:", error);
-    res.status(500).json({ message: "Server error" });
+    res.status(500).json({ message: "Server error", error: error.message });
   }
 };
 
 
+// controllers/taskController.js → updateMyTask
 const updateMyTask = async (req, res) => {
   try {
     const { taskId } = req.params;
-    const { status, volunteer_description } = req.body;
-    const files = req.files; // multer
+    const { status, volunteer_description, attachmentLinks, existingAttachments } = req.body;
+    const files = req.files || [];
 
     const volunteer = await Volunteer.findOne({ user_id: req.user.id });
-    if (!volunteer) {
-      return res.status(403).json({ message: "Only volunteers can update tasks." });
-    }
+    if (!volunteer) return res.status(403).json({ message: "Only volunteers can update tasks." });
 
     const task = await Task.findOne({ _id: taskId, assign_to: volunteer._id });
-    if (!task) {
-      return res.status(404).json({ message: "Task not found or not assigned to you." });
-    }
+    if (!task) return res.status(404).json({ message: "Task not found or not assigned to you." });
 
-    // Update fields
+    // Update basic fields
     if (status) task.status = status;
     if (volunteer_description !== undefined) task.volunteer_description = volunteer_description;
 
-    // Handle file uploads
-    if (files && files.length > 0) {
-      const baseUrl = `${req.protocol}://${req.get("host")}`;
-      files.forEach((file) => {
-        const fileUrl = `${baseUrl}/uploads/task_attachments/${file.filename}`;
-        task.attachments.push({ url: fileUrl });
-      });
+    // === PRESERVE EXISTING ATTACHMENTS ===
+    let keptAttachments = [];
+    if (existingAttachments) {
+      const urls = Array.isArray(existingAttachments) ? existingAttachments : [existingAttachments];
+      keptAttachments = urls.map(url => ({ url: url.trim(), uploadedAt: new Date() }));
     }
+
+    // === ADD NEW LINKS ===
+    let newLinks = [];
+    if (attachmentLinks) {
+      const links = Array.isArray(attachmentLinks) ? attachmentLinks : [attachmentLinks];
+      newLinks = links
+        .filter(link => link && link.trim())
+        .map(url => ({ url: url.trim(), uploadedAt: new Date() }));
+    }
+
+    // === ADD NEWLY UPLOADED FILES ===
+    let newFiles = [];
+    if (files.length > 0) {
+      const baseUrl = `${req.protocol}://${req.get("host")}`;
+      newFiles = files.map(file => ({
+        url: `${baseUrl}/uploads/task_attachments/${file.filename}`,
+        uploadedAt: new Date()
+      }));
+    }
+
+    // === FINAL ATTACHMENTS LIST ===
+    task.attachments = [...keptAttachments, ...newLinks, ...newFiles];
 
     await task.save();
 
+    // Repopulate
     await task.populate([
       { path: "event", select: "eventTitle date time venue status eventType targetAttendance description" },
-      { path: "created_by", select: "name email" }
+      { path: "created_by", select: "name email" },
+      { path: "assign_to", populate: { path: "ward" } }
     ]);
 
     res.status(200).json({ success: true, message: "Task updated successfully", task });
   } catch (error) {
     console.error("updateMyTask Error:", error);
-    res.status(500).json({ message: "Server error" });
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
+// controllers/taskController.js
+const deleteAttachment = async (req, res) => {
+  try {
+    const { taskId } = req.params;
+    const { attachmentUrl } = req.body;
+
+    const volunteer = await Volunteer.findOne({ user_id: req.user.id });
+    if (!volunteer) return res.status(403).json({ message: "Unauthorized" });
+
+    const task = await Task.findOne({ _id: taskId, assign_to: volunteer._id });
+    if (!task) return res.status(404).json({ message: "Task not found" });
+
+    // Remove from DB
+    task.attachments = task.attachments.filter(att => att.url !== attachmentUrl);
+    await task.save();
+
+    // Delete file from server (if it's a local upload)
+    if (attachmentUrl.includes("/uploads/task_attachments/")) {
+      const filename = attachmentUrl.split("/uploads/task_attachments/").pop();
+      const filePath = path.join(__dirname, "../uploads/task_attachments", filename);
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+      }
+    }
+
+    res.json({ success: true, message: "Attachment deleted" });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
   }
 };
 
@@ -205,5 +257,6 @@ module.exports = {
   createTask,
   getTasks,
   getMyTasks,
-  updateMyTask   // ← ADD THIS
+  updateMyTask, 
+  deleteAttachment// ← ADD THIS
 };
