@@ -253,8 +253,93 @@ const deleteAttachment = async (req, res) => {
   }
 };
 
+// Add this function to your taskController.js
+const createBulkTasks = async (req, res) => {
+  try {
+    const { task_title, description, assign_to, event } = req.body;
+
+    if (!task_title || !description || !event || !Array.isArray(assign_to) || assign_to.length === 0) {
+      return res.status(400).json({ message: "All fields and at least one volunteer are required." });
+    }
+
+    const validEvent = await Event.findById(event);
+    if (!validEvent || !['scheduled', 'ongoing'].includes(validEvent.status)) {
+      return res.status(400).json({ message: "Valid scheduled or ongoing event required." });
+    }
+
+    const userId = req.user.id;
+    const userWithRole = await User.findById(userId).populate("role_id", "name");
+    const isAdmin = userWithRole?.role_id?.name === "admin";
+
+    const createdTasks = [];
+    const errors = [];
+
+    for (const volunteerId of assign_to) {
+      try {
+        const volunteer = await Volunteer.findById(volunteerId);
+        if (!volunteer) {
+          errors.push({ volunteerId, error: "Volunteer not found" });
+          continue;
+        }
+
+        if (!isAdmin && volunteer.created_by.toString() !== userId) {
+          errors.push({ volunteerId, error: "Not authorized" });
+          continue;
+        }
+
+        const existing = await Task.findOne({
+          task_title,
+          assign_to: volunteerId,
+          event,
+          status: "pending"
+        });
+
+        if (existing) {
+          errors.push({ volunteerId, error: "Already assigned (pending)" });
+          continue;
+        }
+
+        const newTask = await Task.create({
+          task_title,
+          description,
+          event,
+          assign_to: volunteerId,
+          created_by: userId,
+        });
+
+        await newTask.populate([
+          { path: 'assign_to', populate: { path: 'ward' } },
+          { path: 'created_by', select: 'name email' },
+          { path: 'event' }
+        ]);
+
+        createdTasks.push(newTask);
+      } catch (err) {
+        errors.push({ volunteerId, error: err.message });
+      }
+    }
+
+    if (createdTasks.length === 0) {
+      return res.status(400).json({ message: "No tasks created", errors });
+    }
+
+    res.status(201).json({
+      success: true,
+      message: `Task assigned to ${createdTasks.length} volunteer(s)`,
+      createdTasks,
+      failed: errors.length > 0 ? errors : undefined
+    });
+  } catch (error) {
+    console.error("Bulk Task Error:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+
+
 module.exports = {
   createTask,
+  createBulkTasks,
   getTasks,
   getMyTasks,
   updateMyTask, 

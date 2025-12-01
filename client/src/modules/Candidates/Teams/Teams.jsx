@@ -1,13 +1,12 @@
 'use client';
-
 import React, { useState, useEffect, useContext } from 'react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Textarea } from '@/components/ui/textarea'; // Added for description
-import { Checkbox } from '@/components/ui/checkbox'; // Added import
+import { Textarea } from '@/components/ui/textarea';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Plus } from 'lucide-react';
 import { AuthContext } from '@/modules/Common/context/AuthContext';
 import axiosInstance from '@/modules/Common/axios/axios';
@@ -18,13 +17,16 @@ import Assigntask from './Assigntask';
 
 const Teams = () => {
   const { user } = useContext(AuthContext);
+
   const [addVolunteerOpen, setAddVolunteerOpen] = useState(false);
-  const [assignTaskOpen, setAssignTaskOpen] = useState(false); // New modal state
+  const [assignTaskOpen, setAssignTaskOpen] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
+
   const [wards, setWards] = useState([]);
-  const [volunteers, setVolunteers] = useState([]); // For task assignment
-  const [events, setEvents] = useState([]); // New state for events
+  const [volunteers, setVolunteers] = useState([]);
+  const [events, setEvents] = useState([]);
   const [selectedWard, setSelectedWard] = useState(null);
+
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -33,14 +35,15 @@ const Teams = () => {
     ward: '',
     localities: [],
   });
-  const [taskFormData, setTaskFormData] = useState({ // New form for task
+
+  const [taskFormData, setTaskFormData] = useState({
     task_title: '',
     description: '',
-    assign_to: '',
-    event: '', // New field for event
+    assign_to: [], // Array of volunteer IDs
+    event: '',
   });
 
-  // Fetch wards when volunteer modal opens
+  // Fetch wards when Add Volunteer modal opens
   useEffect(() => {
     if (addVolunteerOpen && user) {
       const fetchWards = async () => {
@@ -48,19 +51,19 @@ const Teams = () => {
           const res = await axiosInstance.get('/wards');
           setWards(res.data.wards || []);
         } catch (err) {
-          showToast('error', 'Failed to load your wards');
+          showToast('error', 'Failed to load wards');
         }
       };
       fetchWards();
     }
   }, [addVolunteerOpen, user]);
 
-  // Fetch volunteers when task modal opens (role-based, e.g., user's created or ward)
+  // Fetch volunteers when Assign Task modal opens
   useEffect(() => {
     if (assignTaskOpen && user) {
       const fetchVolunteers = async () => {
         try {
-          const res = await axiosInstance.get('/volunteers'); // Backend handles role-based filter
+          const res = await axiosInstance.get('/volunteers');
           setVolunteers(res.data || []);
         } catch (err) {
           showToast('error', 'Failed to load volunteers');
@@ -70,31 +73,28 @@ const Teams = () => {
     }
   }, [assignTaskOpen, user]);
 
-  // New: Fetch events (scheduled and ongoing only) when task modal opens (role-based)
+  // Fetch events (only scheduled & ongoing)
   useEffect(() => {
     if (assignTaskOpen && user) {
       const fetchEvents = async () => {
         try {
-          // Fetch only scheduled and ongoing events, role-based via backend
           const res = await axiosInstance.get('/events?status=scheduled,ongoing');
-          setEvents(res.data.data || []); // Fixed: Use res.data.data for the array
+          setEvents(res.data.data || []);
         } catch (err) {
           showToast('error', 'Failed to load events');
-          setEvents([]); // Ensure array on error
+          setEvents([]);
         }
       };
       fetchEvents();
     }
   }, [assignTaskOpen, user]);
 
-  // Handle ward selection for volunteer
   const handleWardChange = (wardId) => {
     const ward = wards.find((w) => w._id === wardId);
     setSelectedWard(ward);
     setFormData((prev) => ({ ...prev, ward: wardId, localities: [] }));
   };
 
-  // Handle locality toggle for volunteer
   const toggleLocality = (locality) => {
     setFormData((prev) => ({
       ...prev,
@@ -104,7 +104,6 @@ const Teams = () => {
     }));
   };
 
-  // Restrict phone number to digits only for volunteer
   const handlePhoneChange = (e) => {
     const value = e.target.value.replace(/\D/g, '');
     if (value.length <= 10) {
@@ -112,7 +111,6 @@ const Teams = () => {
     }
   };
 
-  // Submit volunteer form
   const handleVolunteerSubmit = async (e) => {
     e.preventDefault();
 
@@ -138,23 +136,30 @@ const Teams = () => {
     }
   };
 
-  // Submit task form
   const handleTaskSubmit = async (e) => {
     e.preventDefault();
 
-    if (!taskFormData.task_title || !taskFormData.description || !taskFormData.assign_to || !taskFormData.event) {
-      showToast('error', 'All task fields are required, including event');
+    if (!taskFormData.task_title || !taskFormData.description || !taskFormData.event || taskFormData.assign_to.length === 0) {
+      showToast('error', 'Please fill all fields and select at least one volunteer');
       return;
     }
 
     try {
-      await axiosInstance.post('/tasks', taskFormData);
-      showToast('success', 'Task assigned successfully!');
+      const payload = {
+        task_title: taskFormData.task_title,
+        description: taskFormData.description,
+        assign_to: taskFormData.assign_to, // array
+        event: taskFormData.event,
+      };
+
+      await axiosInstance.post('/tasks/bulk', payload);
+
+      showToast('success', `Task assigned to ${taskFormData.assign_to.length} volunteer(s)!`);
       setAssignTaskOpen(false);
-      setRefreshKey((prev) => prev + 1); // Refresh tasks list
+      setRefreshKey((prev) => prev + 1);
       resetTaskForm();
     } catch (err) {
-      const msg = err.response?.data?.message || 'Failed to assign task';
+      const msg = err.response?.data?.message || 'Failed to assign tasks';
       showToast('error', msg);
     }
   };
@@ -175,13 +180,13 @@ const Teams = () => {
     setTaskFormData({
       task_title: '',
       description: '',
-      assign_to: '',
-      event: '', // Reset event
+      assign_to: [],
+      event: '',
     });
   };
 
   return (
-    <div className="p-4 sm:p-6 space-y-6"> {/* Responsive padding */}
+    <div className="p-4 sm:p-6 space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
@@ -190,7 +195,7 @@ const Teams = () => {
             Manage your campaign team and track performance
           </p>
         </div>
-        <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto"> {/* Responsive buttons */}
+        <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
           <Button onClick={() => setAddVolunteerOpen(true)} className="flex items-center gap-2 w-full sm:w-auto">
             <Plus className="w-4 h-4" />
             Add Volunteer
@@ -202,9 +207,8 @@ const Teams = () => {
         </div>
       </div>
 
-      {/* Main Content - More responsive grid */}
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 lg:gap-6"> {/* Added xl breakpoint */}
-        {/* Team Members */}
+      {/* Main Grid */}
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 lg:gap-6">
         <div className="xl:col-span-2">
           <Card className="h-full">
             <CardContent className="p-0 h-full">
@@ -212,8 +216,6 @@ const Teams = () => {
             </CardContent>
           </Card>
         </div>
-
-        {/* Tasks */}
         <div className="h-full">
           <Card className="h-full">
             <CardContent className="p-0 h-full">
@@ -223,14 +225,13 @@ const Teams = () => {
         </div>
       </div>
 
-      {/* Add Volunteer Modal - Adjusted for gaps */}
+      {/* Add Volunteer Modal */}
       <Dialog open={addVolunteerOpen} onOpenChange={setAddVolunteerOpen}>
-        <DialogContent className="max-w-md sm:max-w-lg p-0"> {/* Increased width responsive, removed internal padding */}
-          <DialogHeader className="p-6 pb-4"> {/* Adjusted padding */}
+        <DialogContent className="max-w-md sm:max-w-lg p-0">
+          <DialogHeader className="p-6 pb-4">
             <DialogTitle>Add New Volunteer</DialogTitle>
           </DialogHeader>
-
-          <form onSubmit={handleVolunteerSubmit} className="space-y-3 p-6 pt-0"> {/* Padding without header overlap */}
+          <form onSubmit={handleVolunteerSubmit} className="space-y-3 p-6 pt-0">
             <div className="space-y-1">
               <Label>Name</Label>
               <Input
@@ -296,7 +297,7 @@ const Teams = () => {
                   {selectedWard.localities.map((loc) => (
                     <label
                       key={loc}
-                      className="flex items-center space-x-2 p-1 rounded"
+                      className="flex items-center space-x-2 p-1 rounded hover:bg-accent"
                     >
                       <Checkbox
                         checked={formData.localities.includes(loc)}
@@ -313,7 +314,10 @@ const Teams = () => {
               <Button type="button" variant="outline" onClick={() => setAddVolunteerOpen(false)}>
                 Cancel
               </Button>
-              <Button type="submit" disabled={formData.localities.length === 0}>
+              <Button
+                type="submit"
+                disabled={formData.localities.length === 0 || formData.phoneNumber.length !== 10}
+              >
                 Add Volunteer
               </Button>
             </div>
@@ -321,14 +325,13 @@ const Teams = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Assign Task Modal (New) - Adjusted for gaps */}
+      {/* Assign Task Modal - MULTI SELECT */}
       <Dialog open={assignTaskOpen} onOpenChange={setAssignTaskOpen}>
-        <DialogContent className="max-w-md sm:max-w-lg p-0"> {/* Increased width responsive, removed internal padding */}
-          <DialogHeader className="p-6 pb-4"> {/* Adjusted padding */}
+        <DialogContent className="max-w-md sm:max-w-lg p-0">
+          <DialogHeader className="p-6 pb-4">
             <DialogTitle>Assign New Task</DialogTitle>
           </DialogHeader>
-
-          <form onSubmit={handleTaskSubmit} className="space-y-3 p-6 pt-0"> {/* Padding without header overlap */}
+          <form onSubmit={handleTaskSubmit} className="space-y-4 p-6 pt-0">
             <div className="space-y-1">
               <Label>Task Title</Label>
               <Input
@@ -343,16 +346,18 @@ const Teams = () => {
               <Textarea
                 value={taskFormData.description}
                 onChange={(e) => setTaskFormData({ ...taskFormData, description: e.target.value })}
-                rows={3}
+                rows={4}
                 placeholder="Enter task details..."
                 required
               />
             </div>
 
-            {/* New: Event Selection */}
             <div className="space-y-1">
               <Label>Related Event (Scheduled/Ongoing)</Label>
-              <Select onValueChange={(value) => setTaskFormData({ ...taskFormData, event: value })} value={taskFormData.event}>
+              <Select
+                onValueChange={(value) => setTaskFormData({ ...taskFormData, event: value })}
+                value={taskFormData.event}
+              >
                 <SelectTrigger>
                   <SelectValue placeholder="Select an event" />
                 </SelectTrigger>
@@ -366,28 +371,69 @@ const Teams = () => {
               </Select>
             </div>
 
-            <div className="space-y-1">
-              <Label>Assign To (Volunteer)</Label>
-              <Select onValueChange={(value) => setTaskFormData({ ...taskFormData, assign_to: value })} value={taskFormData.assign_to}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a volunteer" />
-                </SelectTrigger>
-                <SelectContent>
-                  {volunteers.map((vol) => (
-                    <SelectItem key={vol._id} value={vol._id}>
-                      {vol.name} ({vol.email}) - {vol.ward?.ward_name || 'N/A'}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <div className="space-y-2">
+              <Label>Assign To (Select Multiple Volunteers)</Label>
+              <div className="border rounded-lg p-3 max-h-64 overflow-y-auto bg-muted/20">
+                {volunteers.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-8">
+                    No volunteers available
+                  </p>
+                ) : (
+                  volunteers.map((vol) => (
+                    <label
+                      key={vol._id}
+                      className="flex items-center space-x-3 p-3 hover:bg-accent/50 rounded-md cursor-pointer transition-colors"
+                    >
+                      <Checkbox
+                        checked={taskFormData.assign_to.includes(vol._id)}
+                        onCheckedChange={(checked) => {
+                          setTaskFormData((prev) => ({
+                            ...prev,
+                            assign_to: checked
+                              ? [...prev.assign_to, vol._id]
+                              : prev.assign_to.filter((id) => id !== vol._id),
+                          }));
+                        }}
+                      />
+                      <div className="flex-1">
+                        <div className="font-medium text-sm">{vol.name}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {vol.email} • {vol.ward?.ward_name || 'No ward'}
+                        </div>
+                      </div>
+                    </label>
+                  ))
+                )}
+              </div>
+
+              {taskFormData.assign_to.length > 0 && (
+                <p className="text-sm font-medium text-primary">
+                  {taskFormData.assign_to.length} volunteer(s) selected
+                </p>
+              )}
             </div>
 
             <div className="flex justify-end gap-3 pt-4">
-              <Button type="button" variant="outline" onClick={() => setAssignTaskOpen(false)}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setAssignTaskOpen(false);
+                  resetTaskForm();
+                }}
+              >
                 Cancel
               </Button>
-              <Button type="submit" disabled={!taskFormData.assign_to || !taskFormData.event}>
-                Assign Task
+              <Button
+                type="submit"
+                disabled={
+                  !taskFormData.task_title ||
+                  !taskFormData.description ||
+                  !taskFormData.event ||
+                  taskFormData.assign_to.length === 0
+                }
+              >
+                Assign to {taskFormData.assign_to.length || 0} Volunteer(s)
               </Button>
             </div>
           </form>
