@@ -15,10 +15,8 @@ const app = express();
 // ======== CORS Setup ========
 const allowedOrigins = [
   process.env.CLIENT_URL,
-  "https://admin.namathumakkalkazhagam.com",
-  "https://www.admin.namathumakkalkazhagam.com",
-  "https://namathumakkalkazhagam.com",
-  "https://www.namathumakkalkazhagam.com"
+  "https://politico360.abmgroups.org",
+  "https://www.politico360.abmgroups.org",
 ];
 
 const corsOptions = {
