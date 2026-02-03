@@ -26,8 +26,8 @@ export function NavMain({ items }) {
             <SidebarMenuItem key={item.title}>
               <SidebarMenuButton asChild tooltip={item.title}>
                 <Link to={item.url}>
-                  {item.icon && <item.icon />}
-                  <span>{item.title}</span>
+                  {item.icon && <item.icon className="text-white" />}
+                  <span className="text-white">{item.title}</span>
                 </Link>
               </SidebarMenuButton>
             </SidebarMenuItem>

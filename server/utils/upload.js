@@ -1,3 +1,4 @@
+// Updated middleware/upload.js (key changes for subfolders)
 require("dotenv").config();
 const multer = require("multer");
 const fs = require("fs");
@@ -11,35 +12,58 @@ ffmpeg.setFfmpegPath(ffmpegStatic);
 const SERVER_URL = process.env.SERVER_URL ;
 console.log(`Server URL: ${SERVER_URL}`);
 
-// Ensure dynamic folder creation for candidateimage only
+// Updated createEntityFolder to handle subfolders (e.g., voters/name)
 const createEntityFolder = (entity_type) => {
-  const uploadDir = path.join(__dirname, "../Uploads", entity_type);
+  let uploadDir = path.join(__dirname, "../Uploads", entity_type);
+  if (entity_type.includes("/")) {
+    // For subfolders like voters/name, create nested
+    const parts = entity_type.split("/");
+    let currentDir = path.join(__dirname, "../Uploads");
+    parts.forEach(part => {
+      currentDir = path.join(currentDir, part);
+      if (!fs.existsSync(currentDir)) {
+        fs.mkdirSync(currentDir, { recursive: true });
+      }
+    });
+    uploadDir = currentDir;
+  } else {
+    // Original logic
+    try {
+      if (!fs.existsSync(uploadDir)) {
+        console.log(`Creating directory: ${uploadDir}`);
+        fs.mkdirSync(uploadDir, { recursive: true });
+      } else {
+        console.log(`Directory already exists: ${uploadDir}`);
+      }
 
-  try {
-    if (!fs.existsSync(uploadDir)) {
-      console.log(`Creating directory: ${uploadDir}`);
-      fs.mkdirSync(uploadDir, { recursive: true });
-    } else {
-      console.log(`Directory already exists: ${uploadDir}`);
+      fs.accessSync(uploadDir, fs.constants.W_OK);
+      console.log(`Write permissions confirmed for: ${uploadDir}`);
+    } catch (error) {
+      console.error(`Failed to create or access directory: ${uploadDir}`, error);
+      throw new Error(`Failed to create or access directory: ${uploadDir}`);
     }
+  }
 
-    fs.accessSync(uploadDir, fs.constants.W_OK);
-    console.log(`Write permissions confirmed for: ${uploadDir}`);
-  } catch (error) {
-    console.error(`Failed to create or access directory: ${uploadDir}`, error);
-    throw new Error(`Failed to create or access directory: ${uploadDir}`);
+  // For voters/name, add /images subfolder
+  if (entity_type.startsWith("voters/")) {
+    const imagesDir = path.join(uploadDir, "images");
+    if (!fs.existsSync(imagesDir)) {
+      fs.mkdirSync(imagesDir, { recursive: true });
+    }
+    uploadDir = imagesDir;
   }
 
   return uploadDir;
 };
 
 // Delete File from Uploads
-const deleteFile = (fileUrl, entityType) => {
+const deleteFile = (fileUrl) => {
   try {
+    if (!fileUrl) return;
     const url = new URL(fileUrl);
-    const encodedFilename = path.basename(url.pathname);
-    const filename = decodeURIComponent(encodedFilename);
-    const filePath = path.join(__dirname, "../Uploads", entityType, filename);
+    const pathname = decodeURIComponent(url.pathname);
+    const relativePath = pathname.replace('/Uploads/', '');
+    const filePath = path.join(__dirname, "../Uploads", relativePath);
     
     if (fs.existsSync(filePath)) {
       fs.unlinkSync(filePath);
@@ -156,9 +180,9 @@ const compressAudio = async (buffer, outputPath) => {
   });
 };
 
-// Process File and Return Public URL
+// Updated processFile to use updated createEntityFolder
 const processFile = async (buffer, mimetype, entityType, fileName) => {
-  const uploadPath = createEntityFolder(entityType);
+  const uploadPath = createEntityFolder(entityType); // Now handles subfolders and /images
   const filePath = path.join(uploadPath, fileName);
   console.log(`Processing file: ${filePath}, Type: ${mimetype}`);
 
@@ -177,8 +201,14 @@ const processFile = async (buffer, mimetype, entityType, fileName) => {
     throw new Error("Unsupported file type");
   }
 
+  // Adjust URL path for voters to include /images
+  let urlPath = entityType;
+  if (entityType.startsWith("voters/")) {
+    urlPath = `${entityType}/images`;
+  }
+
   const encodedFilename = encodeURIComponent(finalFileName);
-  const publicUrl = `${SERVER_URL}/Uploads/${entityType}/${encodedFilename}`;
+  const publicUrl = `${SERVER_URL}/Uploads/${urlPath}/${encodedFilename}`;
   console.log(`Generated public URL: ${publicUrl}`);
 
   // Verify file exists

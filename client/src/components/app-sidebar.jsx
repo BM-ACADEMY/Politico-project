@@ -29,12 +29,12 @@ export function AppSidebar({ ...props }) {
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton asChild>
               <Link to="/">
                 {/* <IconInnerShadowTopLeft/> */}
-                <span className="text-base font-semibold">Politico 360</span>
+              <span className="text-2xl font-semibold text-white">Politico 360</span>
+
               </Link>
-            </SidebarMenuButton>
+
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarHeader>

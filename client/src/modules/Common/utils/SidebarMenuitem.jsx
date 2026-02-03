@@ -8,7 +8,10 @@ import {
 } from "react-icons/md";
 import { FaBriefcase } from "react-icons/fa";
 import { MdPlaylistAdd } from "react-icons/md";
-import { User } from "lucide-react";
+import { Award, Badge, Calendar, ChartColumn, ChartLine, Image, LayoutDashboard, MapPin, NotepadText, User, User2Icon, Users, Vote } from "lucide-react";
+
+import { RiTeamLine } from "react-icons/ri";
+import { LuImageUp } from "react-icons/lu";
 
 export const sidebarMenuItems = {
   root_admin: [
@@ -19,20 +22,22 @@ export const sidebarMenuItems = {
   admin: [
     { url: "/admin-dashboard", title: "Dashboard", icon: MdDashboard },
     { url: "/admin-dashboard/streets-wards", title: "Streets / Wards", icon: MdChecklist },
-    { url: "/admin-dashboard/candidates", title: "Candidates", icon: MdPerson },
-    { url: "/admin-dashboard/voters", title: "Voters", icon: MdPersonAdd },
   ],
   candidate: [
-    { url: "/candidate-dashboard", title: "Dashboard", icon: MdDashboard },
-    { url: "/candidate-dashboard/campaign", title: "Campaign", icon: FaBriefcase },
-    { url: "/candidate-dashboard/schedule", title: "Schedule", icon: MdEvent },
-    { url: "/candidate-dashboard/profile", title: "Profile", icon: MdPerson },
+    { url: "/candidate-dashboard", title: "Dashboard", icon: LayoutDashboard  },
+    { url: "/candidate-dashboard/streets-wards", title: "Streets / Wards", icon: MapPin },
+    { url: "/candidate-dashboard/joinus", title: "My Join us", icon: Award },
+    { url: "/candidate-dashboard/events", title: "My Events", icon: Calendar },
+    { url: "/candidate-dashboard/voters", title: "My Voters", icon: Vote },
+    { url: "/candidate-dashboard/teams", title: "My Teams", icon: RiTeamLine },
+    { url: "/candidate-dashboard/reports", title: "My Reports", icon: ChartLine },
+    { url: "/candidate-dashboard/banner", title: "Banners", icon: LuImageUp },
   ],
   volunteers: [
-    { url: "/volunteer-dashboard", title: "Dashboard", icon: MdDashboard },
-    { url: "/volunteer-dashboard/tasks", title: "Tasks", icon: MdChecklist },
-    { url: "/volunteer-dashboard/events", title: "Events", icon: MdEvent },
-    { url: "/volunteer-dashboard/profile", title: "Profile", icon: MdPerson },
+    { url: "/volunteers-dashboard", title: "Dashboard", icon: MdDashboard },
+    { url: "/volunteers-dashboard/voters", title: "My Voters", icon: Vote },
+    { url: "/volunteers-dashboard/task", title: "My Task", icon: NotepadText },
+
   ],
 };
 

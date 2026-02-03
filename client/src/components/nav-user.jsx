@@ -5,6 +5,7 @@ import {
   IconNotification,
   IconUserCircle,
 } from "@tabler/icons-react";
+
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -15,19 +16,20 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+
 import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar";
+
 import { useContext } from "react";
 import { AuthContext } from "@/modules/Common/context/AuthContext";
 
 export function NavUser({ user }) {
   const { isMobile } = useSidebar();
   const { logout } = useContext(AuthContext);
-
 
   return (
     <SidebarMenu>
@@ -36,7 +38,14 @@ export function NavUser({ user }) {
           <DropdownMenuTrigger asChild>
             <SidebarMenuButton
               size="lg"
-              className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
+              className="
+                bg-[var(--sidebar)]
+                text-[var(--sidebar-foreground)]
+                hover:bg-[var(--sidebar-accent)]
+                hover:text-[var(--sidebar-accent-foreground)]
+                data-[state=open]:bg-sidebar-accent
+                data-[state=open]:text-sidebar-accent-foreground
+              "
             >
               <Avatar className="h-8 w-8 rounded-lg grayscale">
                 <AvatarImage src={user.avatar} alt={user.name} />
@@ -48,15 +57,20 @@ export function NavUser({ user }) {
                     : ""}
                 </AvatarFallback>
               </Avatar>
+
               <div className="grid flex-1 text-left text-sm leading-tight">
-                <span className="truncate font-medium">{user.name}</span>
-                <span className="text-muted-foreground truncate text-xs">
+                <span className="truncate font-medium text-cap text-[15px] text-white">
+                  {user.name}
+                </span>
+                <span className="truncate text-xs text-white">
                   {user.email}
                 </span>
               </div>
-              <IconDotsVertical className="ml-auto size-4" />
+
+              <IconDotsVertical className="ml-auto size-4 text-white" />
             </SidebarMenuButton>
           </DropdownMenuTrigger>
+
           <DropdownMenuContent
             className="w-(--radix-dropdown-menu-trigger-width) min-w-56 rounded-lg"
             side={isMobile ? "bottom" : "right"}
@@ -75,6 +89,7 @@ export function NavUser({ user }) {
                       : ""}
                   </AvatarFallback>
                 </Avatar>
+
                 <div className="grid flex-1 text-left text-sm leading-tight">
                   <span className="truncate font-medium">{user.name}</span>
                   <span className="text-muted-foreground truncate text-xs">
@@ -83,24 +98,18 @@ export function NavUser({ user }) {
                 </div>
               </div>
             </DropdownMenuLabel>
+
             <DropdownMenuSeparator />
+
             <DropdownMenuGroup>
-              <DropdownMenuItem
-                className="cursor-pointer"
-              >
+              <DropdownMenuItem className="cursor-pointer">
                 <IconUserCircle className="mr-2" />
                 Account
               </DropdownMenuItem>
-              <DropdownMenuItem>
-                <IconCreditCard className="mr-2" />
-                Billing
-              </DropdownMenuItem>
-              <DropdownMenuItem>
-                <IconNotification className="mr-2" />
-                Notifications
-              </DropdownMenuItem>
             </DropdownMenuGroup>
+
             <DropdownMenuSeparator />
+
             <DropdownMenuItem
               onClick={logout}
               className="text-red-500 focus:text-red-500 cursor-pointer"

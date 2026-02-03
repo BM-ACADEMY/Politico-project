@@ -1,21 +1,20 @@
+import Voters from "@/modules/Volunteers/Voters/Voters";
 import PrivateRoute from "../context/PrivateRoute";
+import Task from "@/modules/Volunteers/Task/Task";
 
 
 export const volunteerRoutes = [
   {
-    path: '/volunteer-dashboard',
+    path: '/volunteers-dashboard',
     element: <PrivateRoute allowedRole="volunteers"><>Dash</></PrivateRoute>,
   },
-//   {
-//     path: '/volunteer-dashboard/tasks',
-//     element: <PrivateRoute allowedRole="volunteers"><Tasks /></PrivateRoute>,
-//   },
-//   {
-//     path: '/volunteer-dashboard/events',
-//     element: <PrivateRoute allowedRole="volunteers"><Events /></PrivateRoute>,
-//   },
-//   {
-//     path: '/volunteer-dashboard/profile',
-//     element: <PrivateRoute allowedRole="volunteers"><Profile /></PrivateRoute>,
-//   },
+  {
+    path: '/volunteers-dashboard/task',
+    element: <PrivateRoute allowedRole="volunteers"><Task/></PrivateRoute>,
+  },
+  {
+    path: '/volunteers-dashboard/voters',
+    element: <PrivateRoute allowedRole="volunteers"><Voters/></PrivateRoute>,
+  },
+
 ];

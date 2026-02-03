@@ -9,6 +9,7 @@ import Login from './modules/Common/Auth/Login';
 import { AuthProvider } from './modules/Common/context/AuthContext';
 import Page from './modules/Common/Pages/main-dashboard/Page';
 import PrivateRoute from './modules/Common/context/PrivateRoute';
+import ForgotPassword from './modules/Common/Auth/ForgotPassword';
 // import { AuthProvider } from '@/context/AuthContext';
 // import PrivateRoute from '@/context/PrivateRoute';
 // import LoginPage from '@/Modules/Auth/Login';
@@ -25,7 +26,7 @@ function App() {
         {/* Public Routes */}
         <Route path="/login" element={<PrivateRoute allowedRole="public"><Login /></PrivateRoute>} />
         <Route path="/" element={<PrivateRoute allowedRole="public"><Login /></PrivateRoute>} />
-
+        <Route path="/forgot-password" element={<PrivateRoute allowedRole="public"><ForgotPassword /></PrivateRoute>} /> {/* New route */}
         {/* Protected Routes */}
         <Route element={<Page />}>
           {rootAdminRoutes.map((route) => (
